@@ -73,6 +73,11 @@ const getDatabase = () => {
     addColumnIfNotExists('photos', 'front_path', 'TEXT');
     addColumnIfNotExists('photos', 'side_path', 'TEXT');
     addColumnIfNotExists('photos', 'back_path', 'TEXT');
+
+    addColumnIfNotExists('sleep', 'wake_time', 'TEXT');
+    addColumnIfNotExists('sleep', 'sleep_score', 'INTEGER');
+
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sleep_date ON sleep(date)`);
   });
 
   return db;
