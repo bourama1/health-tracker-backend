@@ -42,6 +42,17 @@ const getDatabase = () => {
       back_path TEXT
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS sleep (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT UNIQUE,
+      bedtime TEXT,
+      wake_time TEXT,
+      rhr INTEGER,
+      sleep_score INTEGER,
+      deep_sleep_minutes INTEGER,
+      rem_sleep_minutes INTEGER
+    )`);
+
     // Basic migration logic: Add columns if they don't exist
     const addColumnIfNotExists = (tableName, columnName, type) => {
       db.run(

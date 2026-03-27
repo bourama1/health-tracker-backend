@@ -26,6 +26,16 @@ describe('Health Tracker API', () => {
         front_path TEXT,
         side_path TEXT,
         back_path TEXT
+      )`);
+      db.run(`CREATE TABLE IF NOT EXISTS sleep (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT UNIQUE,
+        bedtime TEXT,
+        wake_time TEXT,
+        rhr INTEGER,
+        sleep_score INTEGER,
+        deep_sleep_minutes INTEGER,
+        rem_sleep_minutes INTEGER
       )`, (err) => {
         done(err);
       });
@@ -35,7 +45,8 @@ describe('Health Tracker API', () => {
   beforeEach((done) => {
     db.serialize(() => {
       db.run('DELETE FROM measurements');
-      db.run('DELETE FROM photos', (err) => {
+      db.run('DELETE FROM photos');
+      db.run('DELETE FROM sleep', (err) => {
         done(err);
       });
     });
@@ -209,6 +220,53 @@ describe('Health Tracker API', () => {
       const response = await request(app).get('/api/photos/2020-01-01');
       expect(response.status).toBe(200);
       expect(response.body).toEqual({});
+    });
+  });
+
+  describe('Sleep API', () => {
+    test('GET /api/sleep should return an empty array initially', async () => {
+      const response = await request(app).get('/api/sleep');
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(0);
+    });
+
+    test('POST /api/sleep should create a new sleep entry', async () => {
+      const newSleep = {
+        date: '2023-10-27',
+        bedtime: '23:00',
+        wake_time: '07:00',
+        rhr: 55,
+        sleep_score: 85,
+        deep_sleep_minutes: 90,
+        rem_sleep_minutes: 120,
+      };
+
+      const response = await request(app)
+        .post('/api/sleep')
+        .send(newSleep);
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe('Sleep data saved successfully');
+
+      const getResponse = await request(app).get('/api/sleep');
+      expect(getResponse.body.length).toBe(1);
+      expect(getResponse.body[0].date).toBe('2023-10-27');
+      expect(getResponse.body[0].sleep_score).toBe(85);
+    });
+
+    test('POST /api/sleep should update existing entry on date conflict', async () => {
+      const sleep1 = { date: '2023-10-27', sleep_score: 80 };
+      const sleep2 = { date: '2023-10-27', sleep_score: 90 };
+
+      await request(app).post('/api/sleep').send(sleep1);
+      const response = await request(app).post('/api/sleep').send(sleep2);
+
+      expect(response.status).toBe(200);
+      
+      const getResponse = await request(app).get('/api/sleep');
+      expect(getResponse.body.length).toBe(1);
+      expect(getResponse.body[0].sleep_score).toBe(90);
     });
   });
 });
