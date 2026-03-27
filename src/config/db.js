@@ -34,22 +34,34 @@ const getDatabase = () => {
       thigh REAL
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT UNIQUE,
+      front_path TEXT,
+      side_path TEXT,
+      back_path TEXT
+    )`);
+
     // Basic migration logic: Add columns if they don't exist
-    const addColumnIfNotExists = (columnName) => {
+    const addColumnIfNotExists = (tableName, columnName, type) => {
       db.run(
-        `ALTER TABLE measurements ADD COLUMN ${columnName} REAL`,
+        `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${type}`,
         (err) => {
           if (err && !err.message.includes('duplicate column name')) {
             // It's expected that this might fail if the column already exists
-            // console.error(`Error adding ${columnName}:`, err.message);
+            // console.error(`Error adding ${columnName} to ${tableName}:`, err.message);
           }
         }
       );
     };
 
-    addColumnIfNotExists('forearm');
-    addColumnIfNotExists('calf');
-    addColumnIfNotExists('thigh');
+    addColumnIfNotExists('measurements', 'forearm', 'REAL');
+    addColumnIfNotExists('measurements', 'calf', 'REAL');
+    addColumnIfNotExists('measurements', 'thigh', 'REAL');
+
+    addColumnIfNotExists('photos', 'front_path', 'TEXT');
+    addColumnIfNotExists('photos', 'side_path', 'TEXT');
+    addColumnIfNotExists('photos', 'back_path', 'TEXT');
   });
 
   return db;
