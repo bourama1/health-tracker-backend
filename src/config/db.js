@@ -6,7 +6,8 @@ const getDatabase = () => {
   // Construct the absolute path using the variable from .env
   // This goes up two levels from src/config/ to the project root
   const dbName = process.env.DATABASE_NAME || 'health_tracker.db';
-  const dbPath = dbName === ':memory:' ? dbName : path.resolve(__dirname, '../../', dbName);
+  const dbPath =
+    dbName === ':memory:' ? dbName : path.resolve(__dirname, '../../', dbName);
 
   const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
@@ -27,8 +28,28 @@ const getDatabase = () => {
       body_fat REAL,
       chest REAL,
       waist REAL,
-      biceps REAL
+      biceps REAL,
+      forearm REAL,
+      calf REAL,
+      thigh REAL
     )`);
+
+    // Basic migration logic: Add columns if they don't exist
+    const addColumnIfNotExists = (columnName) => {
+      db.run(
+        `ALTER TABLE measurements ADD COLUMN ${columnName} REAL`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            // It's expected that this might fail if the column already exists
+            // console.error(`Error adding ${columnName}:`, err.message);
+          }
+        }
+      );
+    };
+
+    addColumnIfNotExists('forearm');
+    addColumnIfNotExists('calf');
+    addColumnIfNotExists('thigh');
   });
 
   return db;
