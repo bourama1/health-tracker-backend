@@ -7,6 +7,7 @@ const path = require('path');
 const measurementRoutes = require('./routes/measurementRoutes');
 const photoRoutes = require('./routes/photoRoutes');
 const sleepRoutes = require('./routes/sleepRoutes');
+const workoutRoutes = require('./routes/workoutRoutes');
 
 const app = express();
 
@@ -19,5 +20,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/measurements', measurementRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/sleep', sleepRoutes);
+app.use('/api/workouts', workoutRoutes);
 
 module.exports = app;
