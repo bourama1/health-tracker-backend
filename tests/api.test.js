@@ -27,7 +27,8 @@ describe('Health Tracker API', () => {
         side_path TEXT,
         back_path TEXT
       )`);
-      db.run(`CREATE TABLE IF NOT EXISTS sleep (
+      db.run(
+        `CREATE TABLE IF NOT EXISTS sleep (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT UNIQUE,
         bedtime TEXT,
@@ -36,9 +37,11 @@ describe('Health Tracker API', () => {
         sleep_score INTEGER,
         deep_sleep_minutes INTEGER,
         rem_sleep_minutes INTEGER
-      )`, (err) => {
-        done(err);
-      });
+      )`,
+        (err) => {
+          done(err);
+        }
+      );
     });
   });
 
@@ -132,9 +135,15 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/measurements should return records in descending order by date', async () => {
-      await request(app).post('/api/measurements').send({ date: '2023-10-01', bodyweight: 70 });
-      await request(app).post('/api/measurements').send({ date: '2023-10-15', bodyweight: 71 });
-      await request(app).post('/api/measurements').send({ date: '2023-10-05', bodyweight: 70.5 });
+      await request(app)
+        .post('/api/measurements')
+        .send({ date: '2023-10-01', bodyweight: 70 });
+      await request(app)
+        .post('/api/measurements')
+        .send({ date: '2023-10-15', bodyweight: 71 });
+      await request(app)
+        .post('/api/measurements')
+        .send({ date: '2023-10-05', bodyweight: 70.5 });
 
       const response = await request(app).get('/api/measurements');
       expect(response.status).toBe(200);
@@ -164,9 +173,15 @@ describe('Health Tracker API', () => {
       expect(getResponse.body.back_path).toContain('2023-10-27-back.jpg');
 
       // Verify files exist on disk
-      expect(fs.existsSync(path.join(__dirname, '..', getResponse.body.front_path))).toBe(true);
-      expect(fs.existsSync(path.join(__dirname, '..', getResponse.body.side_path))).toBe(true);
-      expect(fs.existsSync(path.join(__dirname, '..', getResponse.body.back_path))).toBe(true);
+      expect(
+        fs.existsSync(path.join(__dirname, '..', getResponse.body.front_path))
+      ).toBe(true);
+      expect(
+        fs.existsSync(path.join(__dirname, '..', getResponse.body.side_path))
+      ).toBe(true);
+      expect(
+        fs.existsSync(path.join(__dirname, '..', getResponse.body.back_path))
+      ).toBe(true);
     });
 
     test('POST /api/photos should update existing record with partial photos', async () => {
@@ -196,9 +211,18 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/photos/dates should return all photo dates in descending order', async () => {
-      await request(app).post('/api/photos').field('date', '2023-10-01').attach('front', 'tests/fixtures/test-image.jpg');
-      await request(app).post('/api/photos').field('date', '2023-10-15').attach('front', 'tests/fixtures/test-image.jpg');
-      await request(app).post('/api/photos').field('date', '2023-10-05').attach('front', 'tests/fixtures/test-image.jpg');
+      await request(app)
+        .post('/api/photos')
+        .field('date', '2023-10-01')
+        .attach('front', 'tests/fixtures/test-image.jpg');
+      await request(app)
+        .post('/api/photos')
+        .field('date', '2023-10-15')
+        .attach('front', 'tests/fixtures/test-image.jpg');
+      await request(app)
+        .post('/api/photos')
+        .field('date', '2023-10-05')
+        .attach('front', 'tests/fixtures/test-image.jpg');
 
       const response = await request(app).get('/api/photos/dates');
       expect(response.status).toBe(200);
@@ -209,7 +233,10 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/photos/:date should return correct photo record', async () => {
-      await request(app).post('/api/photos').field('date', '2023-10-27').attach('front', 'tests/fixtures/test-image.jpg');
+      await request(app)
+        .post('/api/photos')
+        .field('date', '2023-10-27')
+        .attach('front', 'tests/fixtures/test-image.jpg');
       const response = await request(app).get('/api/photos/2023-10-27');
       expect(response.status).toBe(200);
       expect(response.body.date).toBe('2023-10-27');
@@ -242,9 +269,7 @@ describe('Health Tracker API', () => {
         rem_sleep_minutes: 120,
       };
 
-      const response = await request(app)
-        .post('/api/sleep')
-        .send(newSleep);
+      const response = await request(app).post('/api/sleep').send(newSleep);
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Sleep data saved successfully');
@@ -263,7 +288,7 @@ describe('Health Tracker API', () => {
       const response = await request(app).post('/api/sleep').send(sleep2);
 
       expect(response.status).toBe(200);
-      
+
       const getResponse = await request(app).get('/api/sleep');
       expect(getResponse.body.length).toBe(1);
       expect(getResponse.body[0].sleep_score).toBe(90);

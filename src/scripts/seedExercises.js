@@ -1,25 +1,28 @@
 const https = require('https');
 const db = require('../config/db');
 
-const EXERCISES_URL = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
+const EXERCISES_URL =
+  'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
 
 const fetchExercises = () => {
   return new Promise((resolve, reject) => {
-    https.get(EXERCISES_URL, (res) => {
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
+    https
+      .get(EXERCISES_URL, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      })
+      .on('error', (err) => {
+        reject(err);
       });
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', (err) => {
-      reject(err);
-    });
   });
 };
 

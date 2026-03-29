@@ -32,7 +32,7 @@ exports.createSleep = (req, res) => {
                  sleep_score=excluded.sleep_score,
                  deep_sleep_minutes=excluded.deep_sleep_minutes,
                  rem_sleep_minutes=excluded.rem_sleep_minutes`;
-  
+
   const params = [
     date,
     bedtime,

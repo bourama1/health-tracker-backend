@@ -29,24 +29,24 @@ exports.getPlans = (req, res) => {
 
     // Restructure into nested object
     const plansMap = {};
-    rows.forEach(row => {
+    rows.forEach((row) => {
       if (!plansMap[row.plan_id]) {
         plansMap[row.plan_id] = {
           id: row.plan_id,
           name: row.plan_name,
           description: row.description,
-          days: []
+          days: [],
         };
       }
 
       if (row.day_id) {
-        let day = plansMap[row.plan_id].days.find(d => d.id === row.day_id);
+        let day = plansMap[row.plan_id].days.find((d) => d.id === row.day_id);
         if (!day) {
           day = {
             id: row.day_id,
             name: row.day_name,
             day_order: row.day_order,
-            exercises: []
+            exercises: [],
           };
           plansMap[row.plan_id].days.push(day);
         }
@@ -59,7 +59,7 @@ exports.getPlans = (req, res) => {
             sets: row.default_sets,
             reps: row.default_reps,
             weight: row.default_weight,
-            order: row.exercise_order
+            order: row.exercise_order,
           });
         }
       }
@@ -78,7 +78,7 @@ exports.createPlan = (req, res) => {
     db.run('BEGIN TRANSACTION');
 
     const planQuery = `INSERT INTO workout_plans (name, description) VALUES (?, ?)`;
-    db.run(planQuery, [name, description], function(err) {
+    db.run(planQuery, [name, description], function (err) {
       if (err) {
         db.run('ROLLBACK');
         return res.status(400).json({ error: err.message });
@@ -87,14 +87,16 @@ exports.createPlan = (req, res) => {
       const planId = this.lastID;
 
       if (days && days.length > 0) {
-        const dayStmt = db.prepare(`INSERT INTO workout_days (plan_id, name, day_order) VALUES (?, ?, ?)`);
+        const dayStmt = db.prepare(
+          `INSERT INTO workout_days (plan_id, name, day_order) VALUES (?, ?, ?)`
+        );
         const exerciseStmt = db.prepare(`
           INSERT INTO workout_day_exercises (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order)
           VALUES (?, ?, ?, ?, ?, ?)
         `);
 
         days.forEach((day, dayIndex) => {
-          dayStmt.run([planId, day.name, dayIndex], function(err) {
+          dayStmt.run([planId, day.name, dayIndex], function (err) {
             if (err) {
               db.run('ROLLBACK');
               return res.status(400).json({ error: err.message });
@@ -109,7 +111,7 @@ exports.createPlan = (req, res) => {
                   exercise.sets,
                   exercise.reps,
                   exercise.weight,
-                  exerciseIndex
+                  exerciseIndex,
                 ]);
               });
             }
@@ -143,7 +145,7 @@ exports.saveSession = (req, res) => {
     db.run('BEGIN TRANSACTION');
 
     const sessionQuery = `INSERT INTO workout_sessions (day_id, date) VALUES (?, ?)`;
-    db.run(sessionQuery, [day_id, date], function(err) {
+    db.run(sessionQuery, [day_id, date], function (err) {
       if (err) {
         db.run('ROLLBACK');
         return res.status(400).json({ error: err.message });
@@ -157,8 +159,14 @@ exports.saveSession = (req, res) => {
           VALUES (?, ?, ?, ?, ?)
         `);
 
-        logs.forEach(log => {
-          logStmt.run([sessionId, log.exercise_id, log.set_number, log.weight, log.reps]);
+        logs.forEach((log) => {
+          logStmt.run([
+            sessionId,
+            log.exercise_id,
+            log.set_number,
+            log.weight,
+            log.reps,
+          ]);
         });
         logStmt.finalize();
       }
@@ -168,7 +176,10 @@ exports.saveSession = (req, res) => {
           db.run('ROLLBACK');
           return res.status(400).json({ error: err.message });
         }
-        res.json({ id: sessionId, message: 'Workout session saved successfully' });
+        res.json({
+          id: sessionId,
+          message: 'Workout session saved successfully',
+        });
       });
     });
   });
@@ -191,13 +202,13 @@ exports.getSessionHistory = (req, res) => {
     if (err) return res.status(400).json({ error: err.message });
 
     const sessionsMap = {};
-    rows.forEach(row => {
+    rows.forEach((row) => {
       if (!sessionsMap[row.session_id]) {
         sessionsMap[row.session_id] = {
           id: row.session_id,
           date: row.date,
           day_name: row.day_name,
-          logs: []
+          logs: [],
         };
       }
 
@@ -208,7 +219,7 @@ exports.getSessionHistory = (req, res) => {
           exercise_name: row.exercise_name,
           set_number: row.set_number,
           weight: row.weight,
-          reps: row.reps
+          reps: row.reps,
         });
       }
     });

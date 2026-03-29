@@ -6,8 +6,13 @@ describe('Workout API', () => {
   beforeAll((done) => {
     // Seeding a few exercises for testing
     db.serialize(() => {
-      db.run("INSERT OR IGNORE INTO exercises (id, name, category, equipment, primary_muscles) VALUES ('test_bench_press', 'Test Bench Press', 'strength', 'barbell', 'chest')");
-      db.run("INSERT OR IGNORE INTO exercises (id, name, category, equipment, primary_muscles) VALUES ('test_squat', 'Test Squat', 'strength', 'barbell', 'quads')", done);
+      db.run(
+        "INSERT OR IGNORE INTO exercises (id, name, category, equipment, primary_muscles) VALUES ('test_bench_press', 'Test Bench Press', 'strength', 'barbell', 'chest')"
+      );
+      db.run(
+        "INSERT OR IGNORE INTO exercises (id, name, category, equipment, primary_muscles) VALUES ('test_squat', 'Test Squat', 'strength', 'barbell', 'quads')",
+        done
+      );
     });
   });
 
@@ -24,7 +29,7 @@ describe('Workout API', () => {
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeGreaterThan(0);
-      expect(response.body.some(e => e.id === 'test_bench_press')).toBe(true);
+      expect(response.body.some((e) => e.id === 'test_bench_press')).toBe(true);
     });
   });
 
@@ -37,10 +42,15 @@ describe('Workout API', () => {
           {
             name: 'Push Day',
             exercises: [
-              { exercise_id: 'test_bench_press', sets: 3, reps: 10, weight: 60 }
-            ]
-          }
-        ]
+              {
+                exercise_id: 'test_bench_press',
+                sets: 3,
+                reps: 10,
+                weight: 60,
+              },
+            ],
+          },
+        ],
       };
 
       const response = await request(app)
@@ -55,7 +65,9 @@ describe('Workout API', () => {
       expect(getResponse.body[0].name).toBe('Test Plan');
       expect(getResponse.body[0].days.length).toBe(1);
       expect(getResponse.body[0].days[0].name).toBe('Push Day');
-      expect(getResponse.body[0].days[0].exercises[0].exercise_id).toBe('test_bench_press');
+      expect(getResponse.body[0].days[0].exercises[0].exercise_id).toBe(
+        'test_bench_press'
+      );
     });
   });
 
@@ -64,7 +76,7 @@ describe('Workout API', () => {
       // First create a plan to get a day_id
       const newPlan = {
         name: 'Session Test Plan',
-        days: [{ name: 'Day 1', exercises: [{ exercise_id: 'test_squat' }] }]
+        days: [{ name: 'Day 1', exercises: [{ exercise_id: 'test_squat' }] }],
       };
       await request(app).post('/api/workouts/plans').send(newPlan);
       const plans = await request(app).get('/api/workouts/plans');
@@ -75,8 +87,8 @@ describe('Workout API', () => {
         date: '2023-10-27',
         logs: [
           { exercise_id: 'test_squat', set_number: 1, weight: 80, reps: 5 },
-          { exercise_id: 'test_squat', set_number: 2, weight: 80, reps: 5 }
-        ]
+          { exercise_id: 'test_squat', set_number: 2, weight: 80, reps: 5 },
+        ],
       };
 
       const response = await request(app)
