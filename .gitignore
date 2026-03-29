@@ -7,6 +7,7 @@ node_modules/
 
 # Personal uploads (Progress photos)
 uploads/
+test-uploads/
 
 # Environment variables
 .env

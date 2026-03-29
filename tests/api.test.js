@@ -56,8 +56,8 @@ describe('Health Tracker API', () => {
   });
 
   afterAll((done) => {
-    // Cleanup uploaded files
-    const uploadDir = path.join(__dirname, '../uploads/photos');
+    // Cleanup uploaded files in test-uploads
+    const uploadDir = path.join(__dirname, '../test-uploads/photos');
     if (fs.existsSync(uploadDir)) {
       const files = fs.readdirSync(uploadDir);
       for (const file of files) {

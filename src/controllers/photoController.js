@@ -6,7 +6,10 @@ const fs = require('fs');
 // Configure Multer for storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/photos');
+    const uploadDir =
+      process.env.NODE_ENV === 'test'
+        ? path.join(__dirname, '../../test-uploads/photos')
+        : path.join(__dirname, '../../uploads/photos');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -32,14 +35,16 @@ exports.savePhotos = (req, res) => {
   const { date } = req.body;
   if (!date) return res.status(400).json({ error: 'Date is required' });
 
+  const prefix = process.env.NODE_ENV === 'test' ? 'test-uploads' : 'uploads';
+
   const frontPath = req.files['front']
-    ? `uploads/photos/${req.files['front'][0].filename}`
+    ? `${prefix}/photos/${req.files['front'][0].filename}`
     : null;
   const sidePath = req.files['side']
-    ? `uploads/photos/${req.files['side'][0].filename}`
+    ? `${prefix}/photos/${req.files['side'][0].filename}`
     : null;
   const backPath = req.files['back']
-    ? `uploads/photos/${req.files['back'][0].filename}`
+    ? `${prefix}/photos/${req.files['back'][0].filename}`
     : null;
 
   // We want to update only the fields that are provided
