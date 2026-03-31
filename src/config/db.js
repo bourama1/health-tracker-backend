@@ -1,7 +1,6 @@
 const path = require('path');
 require('dotenv').config();
 
-// Extremely robust environment detection for Render
 const isProduction =
   process.env.RENDER === 'true' ||
   !!process.env.RENDER ||
@@ -27,55 +26,84 @@ const getDatabase = () => {
     const { Pool } = require('pg');
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: { rejectUnauthorized: false },
     });
-
     console.error('[DB] Connected to PostgreSQL database');
 
-    // Compatibility Layer for SQLite-style methods
+    // Replace ? with $1, $2, ... for PostgreSQL
+    const toPgSql = (sql) => {
+      let i = 1;
+      return sql.replace(/\?/g, () => `$${i++}`);
+    };
+
     return {
+      // run() returns a Promise AND fires callback if provided
       run: function (sql, params, callback) {
-        // Replace ? with $1, $2, etc. for PostgreSQL
-        let i = 1;
-        const pgSql = sql.replace(/\?/g, () => `$${i++}`);
-        pool
-          .query(pgSql, params)
+        if (typeof params === 'function') {
+          callback = params;
+          params = [];
+        }
+        const pgSql = toPgSql(sql);
+        const promise = pool.query(pgSql, params || []);
+        promise
           .then((res) => {
             if (callback)
               callback.call(
-                { lastID: res.insertId, changes: res.rowCount },
+                { lastID: res.rows[0]?.id ?? null, changes: res.rowCount },
                 null
               );
           })
           .catch((err) => {
             if (callback) callback(err);
           });
+        return promise; // ← CRITICAL FIX: controllers call .then() on this
       },
+
+      // all() returns a Promise of rows AND fires callback if provided
       all: function (sql, params, callback) {
-        let i = 1;
-        const pgSql = sql.replace(/\?/g, () => `$${i++}`);
-        pool
-          .query(pgSql, params)
-          .then((res) => {
-            if (callback) callback(null, res.rows);
+        if (typeof params === 'function') {
+          callback = params;
+          params = [];
+        }
+        const pgSql = toPgSql(sql);
+        const promise = pool.query(pgSql, params || []).then((res) => res.rows);
+        promise
+          .then((rows) => {
+            if (callback) callback(null, rows);
           })
           .catch((err) => {
             if (callback) callback(err);
           });
+        return promise;
       },
+
+      // get() returns a Promise of single row AND fires callback if provided
+      get: function (sql, params, callback) {
+        if (typeof params === 'function') {
+          callback = params;
+          params = [];
+        }
+        const pgSql = toPgSql(sql);
+        const promise = pool
+          .query(pgSql, params || [])
+          .then((res) => res.rows[0] ?? null);
+        promise
+          .then((row) => {
+            if (callback) callback(null, row);
+          })
+          .catch((err) => {
+            if (callback) callback(err);
+          });
+        return promise;
+      },
+
       serialize: function (callback) {
-        callback(); // No-op in PG
+        callback(); // No-op in PostgreSQL
       },
+
       prepare: function (sql) {
         return {
-          run: (...params) => {
-            // Very basic prepare/run shim for migrations
-            let i = 1;
-            const pgSql = sql.replace(/\?/g, () => `$${i++}`);
-            return pool.query(pgSql, params);
-          },
+          run: (...params) => pool.query(toPgSql(sql), params),
           finalize: () => {},
         };
       },
@@ -84,7 +112,6 @@ const getDatabase = () => {
     try {
       console.error('[DB] Initializing SQLite connection...');
       const sqlite3 = require('sqlite3').verbose();
-      // Construct the absolute path using the variable from .env
       const dbName = process.env.DATABASE_NAME || 'health_tracker.db';
       const dbPath = process.env.DATABASE_PATH
         ? process.env.DATABASE_PATH
@@ -107,13 +134,7 @@ const getDatabase = () => {
         '[DB] CRITICAL: Failed to load SQLite driver:',
         err.message
       );
-      // On Render, we should never even reach here if isProduction is correctly set.
-      // But if we do, and we're on Render, we MUST NOT attempt to use sqlite3.
       if (process.env.RENDER) {
-        console.error(
-          '[DB] Detected Render environment but isProduction was false. Forcing PostgreSQL shim.'
-        );
-        // Fallback to a dummy object or throw a better error
         throw new Error(
           'Environment detection failed on Render. Check DATABASE_URL.'
         );
@@ -125,7 +146,6 @@ const getDatabase = () => {
 
 const db = getDatabase();
 
-// Helper to handle SQL dialect differences
 const translateSql = (sql) => {
   if (!isProduction) return sql;
   return sql
@@ -137,19 +157,19 @@ const translateSql = (sql) => {
     )
     .replace(
       /CREATE UNIQUE INDEX IF NOT EXISTS (.*) ON (.*)\((.*)\)/gi,
-      'CREATE UNIQUE INDEX $1 ON $2($3)'
+      'CREATE UNIQUE INDEX IF NOT EXISTS $1 ON $2($3)'
     );
 };
 
 const safeRun = (sql, params = []) => {
   const finalSql = translateSql(sql);
-  db.run(finalSql, params, (err) => {
+  return db.run(finalSql, params, (err) => {
     if (
       err &&
       !err.message.includes('already exists') &&
       !err.message.includes('duplicate column name')
     ) {
-      // console.error(`Error executing SQL: ${finalSql}`, err.message);
+      // Silently ignore expected migration errors
     }
   });
 };
@@ -188,7 +208,6 @@ db.serialize(() => {
       rem_sleep_minutes INTEGER
     )`);
 
-  // Migration logic
   const addCol = (table, col, type) => {
     const finalType = isProduction
       ? type.replace(/REAL/gi, 'DOUBLE PRECISION')
@@ -209,7 +228,6 @@ db.serialize(() => {
     db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sleep_date ON sleep(date)`);
   }
 
-  // Workout Tracking Tables
   safeRun(`CREATE TABLE IF NOT EXISTS exercises (
       id TEXT PRIMARY KEY,
       name TEXT,
