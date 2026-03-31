@@ -1,16 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const workoutController = require('../controllers/workoutController');
+const c = require('../controllers/workoutController');
 
 // Exercises
-router.get('/exercises', workoutController.getAllExercises);
+router.get('/exercises/suggestion/:exercise_id', c.getExerciseSuggestion);
+router.get('/exercises/filters', c.getExerciseFilters);
+router.get('/exercises/:id', c.getExerciseById);
+router.get('/exercises', c.getAllExercises);
 
 // Plans
-router.get('/plans', workoutController.getPlans);
-router.post('/plans', workoutController.createPlan);
+router.get('/plans', c.getPlans);
+router.post('/plans', c.createPlan);
+router.delete('/plans/:id', c.deletePlan);
 
 // Sessions
-router.get('/sessions', workoutController.getSessionHistory);
-router.post('/sessions', workoutController.saveSession);
+router.get('/sessions', c.getSessionHistory);
+router.post('/sessions', c.saveSession);
+router.get('/sessions/last-for-day/:day_id', c.getLastSessionForDay);
+
+// Analytics
+router.get('/progress/:exercise_id', c.getExerciseProgress);
+router.get('/stats', c.getStats);
 
 module.exports = router;

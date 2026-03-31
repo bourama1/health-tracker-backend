@@ -85,8 +85,22 @@ const getDatabase = () => {
       name TEXT,
       category TEXT,
       equipment TEXT,
-      primary_muscles TEXT
+      primary_muscles TEXT,
+      secondary_muscles TEXT,
+      force TEXT,
+      level TEXT,
+      mechanic TEXT,
+      instructions TEXT
     )`);
+
+    // Safe migrations for existing DBs
+    const addCol = (col, type) =>
+      db.run(`ALTER TABLE exercises ADD COLUMN ${col} ${type}`, () => {});
+    addCol('secondary_muscles', 'TEXT');
+    addCol('force', 'TEXT');
+    addCol('level', 'TEXT');
+    addCol('mechanic', 'TEXT');
+    addCol('instructions', 'TEXT');
 
     db.run(`CREATE TABLE IF NOT EXISTS workout_plans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,9 +125,24 @@ const getDatabase = () => {
       default_reps INTEGER,
       default_weight REAL,
       exercise_order INTEGER,
+      target_rpe REAL,
+      reps_min INTEGER,
+      reps_max INTEGER,
+      exercise_type TEXT DEFAULT 'weighted',
       FOREIGN KEY (day_id) REFERENCES workout_days(id) ON DELETE CASCADE,
       FOREIGN KEY (exercise_id) REFERENCES exercises(id)
     )`);
+
+    // Safe migrations for workout_day_exercises
+    const addColDayEx = (col, type) =>
+      db.run(
+        `ALTER TABLE workout_day_exercises ADD COLUMN ${col} ${type}`,
+        () => {}
+      );
+    addColDayEx('target_rpe', 'REAL');
+    addColDayEx('reps_min', 'INTEGER');
+    addColDayEx('reps_max', 'INTEGER');
+    addColDayEx('exercise_type', "TEXT DEFAULT 'weighted'");
 
     db.run(`CREATE TABLE IF NOT EXISTS workout_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
