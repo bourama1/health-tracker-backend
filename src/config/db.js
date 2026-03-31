@@ -1,13 +1,29 @@
 const path = require('path');
 require('dotenv').config();
 
+// Extremely robust environment detection for Render
 const isProduction =
-  process.env.DATABASE_URL &&
-  (process.env.DATABASE_URL.startsWith('postgres://') ||
-    process.env.DATABASE_URL.startsWith('postgresql://'));
+  process.env.RENDER === 'true' ||
+  !!process.env.RENDER ||
+  process.env.NODE_ENV === 'production' ||
+  (process.env.DATABASE_URL &&
+    (process.env.DATABASE_URL.startsWith('postgres://') ||
+      process.env.DATABASE_URL.startsWith('postgresql://')));
+
+console.error(
+  `[DB] Detected environment: ${
+    isProduction ? 'Production (PostgreSQL)' : 'Local (SQLite)'
+  }`
+);
+if (!isProduction) {
+  console.error(`[DB] RENDER env: ${process.env.RENDER}`);
+  console.error(`[DB] NODE_ENV: ${process.env.NODE_ENV}`);
+  console.error(`[DB] DATABASE_URL exists: ${!!process.env.DATABASE_URL}`);
+}
 
 const getDatabase = () => {
   if (isProduction) {
+    console.error('[DB] Initializing PostgreSQL connection pool...');
     const { Pool } = require('pg');
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
@@ -16,7 +32,7 @@ const getDatabase = () => {
       },
     });
 
-    console.log('Connected to PostgreSQL database');
+    console.error('[DB] Connected to PostgreSQL database');
 
     // Compatibility Layer for SQLite-style methods
     return {
@@ -65,27 +81,48 @@ const getDatabase = () => {
       },
     };
   } else {
-    const sqlite3 = require('sqlite3').verbose();
-    // Construct the absolute path using the variable from .env
-    const dbName = process.env.DATABASE_NAME || 'health_tracker.db';
-    const dbPath = process.env.DATABASE_PATH
-      ? process.env.DATABASE_PATH
-      : dbName === ':memory:'
-      ? dbName
-      : path.resolve(__dirname, '../../', dbName);
+    try {
+      console.error('[DB] Initializing SQLite connection...');
+      const sqlite3 = require('sqlite3').verbose();
+      // Construct the absolute path using the variable from .env
+      const dbName = process.env.DATABASE_NAME || 'health_tracker.db';
+      const dbPath = process.env.DATABASE_PATH
+        ? process.env.DATABASE_PATH
+        : dbName === ':memory:'
+          ? dbName
+          : path.resolve(__dirname, '../../', dbName);
 
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        console.error('Error opening database:', err.message);
-      } else {
-        if (process.env.NODE_ENV !== 'test') {
-          console.log(`Connected to SQLite database at: ${dbPath}`);
+      const db = new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+          console.error('Error opening database:', err.message);
+        } else {
+          if (process.env.NODE_ENV !== 'test') {
+            console.error(`Connected to SQLite database at: ${dbPath}`);
+          }
         }
+      });
+      return db;
+    } catch (err) {
+      console.error(
+        '[DB] CRITICAL: Failed to load SQLite driver:',
+        err.message
+      );
+      // On Render, we should never even reach here if isProduction is correctly set.
+      // But if we do, and we're on Render, we MUST NOT attempt to use sqlite3.
+      if (process.env.RENDER) {
+        console.error(
+          '[DB] Detected Render environment but isProduction was false. Forcing PostgreSQL shim.'
+        );
+        // Fallback to a dummy object or throw a better error
+        throw new Error(
+          'Environment detection failed on Render. Check DATABASE_URL.'
+        );
       }
-    });
-    return db;
+      throw err;
+    }
   }
 };
+
 const db = getDatabase();
 
 // Helper to handle SQL dialect differences
