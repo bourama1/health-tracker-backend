@@ -1,5 +1,3 @@
-const sqlite3 = require('sqlite3').verbose();
-const { Pool } = require('pg');
 const path = require('path');
 require('dotenv').config();
 
@@ -10,6 +8,7 @@ const isProduction =
 
 const getDatabase = () => {
   if (isProduction) {
+    const { Pool } = require('pg');
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: {
@@ -66,13 +65,14 @@ const getDatabase = () => {
       },
     };
   } else {
+    const sqlite3 = require('sqlite3').verbose();
     // Construct the absolute path using the variable from .env
     const dbName = process.env.DATABASE_NAME || 'health_tracker.db';
     const dbPath = process.env.DATABASE_PATH
       ? process.env.DATABASE_PATH
       : dbName === ':memory:'
-        ? dbName
-        : path.resolve(__dirname, '../../', dbName);
+      ? dbName
+      : path.resolve(__dirname, '../../', dbName);
 
     const db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
@@ -86,7 +86,6 @@ const getDatabase = () => {
     return db;
   }
 };
-
 const db = getDatabase();
 
 // Helper to handle SQL dialect differences
