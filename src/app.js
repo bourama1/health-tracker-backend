@@ -20,7 +20,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (Postman, mobile, curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -35,7 +34,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // ← handle preflight for ALL routes
+app.options('/(.*)', cors(corsOptions)); // ← '*' broken in newer path-to-regexp
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
