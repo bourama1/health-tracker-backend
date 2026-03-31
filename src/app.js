@@ -34,7 +34,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('/(.*)', cors(corsOptions)); // ← '*' broken in newer path-to-regexp
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
