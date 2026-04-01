@@ -1,56 +1,39 @@
 const db = require('../config/db');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { oauth2Client } = require('../config/googleConfig');
+const axios = require('axios');
 
-// Configure Multer for storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir =
-      process.env.NODE_ENV === 'test'
-        ? path.join(__dirname, '../../test-uploads/photos')
-        : path.join(__dirname, '../../uploads/photos');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+// Helper to get authorized axios instance
+const getPhotosClient = (tokens) => {
+  return axios.create({
+    baseURL: 'https://photoslibrary.googleapis.com/v1',
+    headers: {
+      Authorization: `Bearer ${tokens.access_token}`,
+      'Content-Type': 'application/json'
     }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // We'll use fieldname + date for filename
-    const date = req.body.date || new Date().toISOString().split('T')[0];
-    const ext = path.extname(file.originalname);
-    cb(null, `${date}-${file.fieldname}${ext}`);
-  },
-});
+  });
+};
 
-const upload = multer({ storage: storage });
+// List user's Google Photos
+exports.listGooglePhotos = async (req, res) => {
+  if (!req.session || !req.session.tokens) {
+    return res.status(401).json({ error: 'Not authenticated with Google' });
+  }
 
-exports.uploadMiddleware = upload.fields([
-  { name: 'front', maxCount: 1 },
-  { name: 'side', maxCount: 1 },
-  { name: 'back', maxCount: 1 },
-]);
+  try {
+    const client = getPhotosClient(req.session.tokens);
+    const response = await client.get('/mediaItems', {
+      params: { pageSize: 50 }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error listing Google Photos:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to list Google Photos' });
+  }
+};
 
 exports.savePhotos = (req, res) => {
-  const { date } = req.body;
+  const { date, front_google_id, side_google_id, back_google_id } = req.body;
   if (!date) return res.status(400).json({ error: 'Date is required' });
-
-  const prefix = process.env.NODE_ENV === 'test' ? 'test-uploads' : 'uploads';
-
-  const frontPath = req.files['front']
-    ? `${prefix}/photos/${req.files['front'][0].filename}`
-    : null;
-  const sidePath = req.files['side']
-    ? `${prefix}/photos/${req.files['side'][0].filename}`
-    : null;
-  const backPath = req.files['back']
-    ? `${prefix}/photos/${req.files['back'][0].filename}`
-    : null;
-
-  // We want to update only the fields that are provided
-  // SQLite doesn't support ON CONFLICT ... SET column = COALESCE(excluded.column, table.column) as easily in old versions,
-  // but we can try the standard syntax if supported, or just do it in two steps.
-  // Actually, let's just check if record exists first to be safe and clear.
 
   db.get('SELECT * FROM photos WHERE date = ?', [date], (err, row) => {
     if (err) return res.status(400).json({ error: err.message });
@@ -59,22 +42,22 @@ exports.savePhotos = (req, res) => {
       // Update
       const query = `
         UPDATE photos
-        SET front_path = COALESCE(?, front_path),
-            side_path = COALESCE(?, side_path),
-            back_path = COALESCE(?, back_path)
+        SET front_google_id = COALESCE(?, front_google_id),
+            side_google_id = COALESCE(?, side_google_id),
+            back_google_id = COALESCE(?, back_google_id)
         WHERE date = ?
       `;
-      db.run(query, [frontPath, sidePath, backPath, date], function (err) {
+      db.run(query, [front_google_id, side_google_id, back_google_id, date], function (err) {
         if (err) return res.status(400).json({ error: err.message });
         res.json({ message: 'Photos updated successfully' });
       });
     } else {
       // Insert
       const query = `
-        INSERT INTO photos (date, front_path, side_path, back_path)
+        INSERT INTO photos (date, front_google_id, side_google_id, back_google_id)
         VALUES (?, ?, ?, ?)
       `;
-      db.run(query, [date, frontPath, sidePath, backPath], function (err) {
+      db.run(query, [date, front_google_id, side_google_id, back_google_id], function (err) {
         if (err) return res.status(400).json({ error: err.message });
         res.json({ message: 'Photos saved successfully' });
       });
@@ -82,12 +65,51 @@ exports.savePhotos = (req, res) => {
   });
 };
 
-exports.getPhotosByDate = (req, res) => {
+exports.getPhotosByDate = async (req, res) => {
   const { date } = req.params;
   const query = `SELECT * FROM photos WHERE date = ?`;
-  db.get(query, [date], (err, row) => {
+  
+  db.get(query, [date], async (err, row) => {
     if (err) return res.status(400).json({ error: err.message });
-    res.json(row || {});
+    if (!row) return res.json({});
+
+    // If we have Google IDs, we need to fetch fresh baseUrls
+    if (row.front_google_id || row.side_google_id || row.back_google_id) {
+      if (!req.session || !req.session.tokens) {
+        // Return without URLs if not logged in
+        return res.json(row);
+      }
+
+      try {
+        const client = getPhotosClient(req.session.tokens);
+        const ids = [row.front_google_id, row.side_google_id, row.back_google_id].filter(Boolean);
+        
+        // Fetch media items details
+        // Note: batchesGet only supports up to 50 IDs
+        const response = await client.post('/mediaItems:batchGet', {
+          mediaItemIds: ids
+        });
+
+        const mediaItems = response.data.mediaItemResults || [];
+        const result = { ...row };
+
+        mediaItems.forEach(itemResult => {
+          const item = itemResult.mediaItem;
+          if (!item) return;
+
+          if (item.id === row.front_google_id) result.front_path = item.baseUrl;
+          if (item.id === row.side_google_id) result.side_path = item.baseUrl;
+          if (item.id === row.back_google_id) result.back_path = item.baseUrl;
+        });
+
+        res.json(result);
+      } catch (error) {
+        console.error('Error fetching Google Photo details:', error.response?.data || error.message);
+        res.json(row); // Return row without fresh URLs
+      }
+    } else {
+      res.json(row);
+    }
   });
 };
 
@@ -98,3 +120,6 @@ exports.getAllPhotoDates = (req, res) => {
     res.json(rows);
   });
 };
+
+// No-op middleware since we're not using Multer anymore
+exports.uploadMiddleware = (req, res, next) => next();

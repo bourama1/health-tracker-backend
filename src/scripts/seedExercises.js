@@ -9,10 +9,15 @@ const fetchExercises = () =>
     https
       .get(EXERCISES_URL, (res) => {
         let data = '';
-        res.on('data', (chunk) => { data += chunk; });
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
         res.on('end', () => {
-          try { resolve(JSON.parse(data)); }
-          catch (e) { reject(e); }
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
         });
       })
       .on('error', reject);
@@ -48,11 +53,17 @@ const seedExercises = async (exitOnComplete = false) => {
     const exercises = await fetchExercises();
     console.log(`Fetched ${exercises.length} exercises. Seeding...`);
 
-    await dbRun(`ALTER TABLE exercises ADD COLUMN secondary_muscles TEXT`).catch(() => {});
+    await dbRun(
+      `ALTER TABLE exercises ADD COLUMN secondary_muscles TEXT`
+    ).catch(() => {});
     await dbRun(`ALTER TABLE exercises ADD COLUMN force TEXT`).catch(() => {});
     await dbRun(`ALTER TABLE exercises ADD COLUMN level TEXT`).catch(() => {});
-    await dbRun(`ALTER TABLE exercises ADD COLUMN mechanic TEXT`).catch(() => {});
-    await dbRun(`ALTER TABLE exercises ADD COLUMN instructions TEXT`).catch(() => {});
+    await dbRun(`ALTER TABLE exercises ADD COLUMN mechanic TEXT`).catch(
+      () => {}
+    );
+    await dbRun(`ALTER TABLE exercises ADD COLUMN instructions TEXT`).catch(
+      () => {}
+    );
 
     await dbRun('BEGIN');
 

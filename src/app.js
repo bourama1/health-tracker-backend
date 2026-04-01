@@ -2,12 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cookieSession = require('cookie-session');
 
 // Import Routes
 const measurementRoutes = require('./routes/measurementRoutes');
 const photoRoutes = require('./routes/photoRoutes');
 const sleepRoutes = require('./routes/sleepRoutes');
 const workoutRoutes = require('./routes/workoutRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -36,6 +38,14 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 app.use(express.json());
+
+// Session configuration
+app.use(cookieSession({
+  name: 'session',
+  keys: [process.env.SESSION_KEY || 'secret-key'],
+  maxAge: 24 * 60 * 60 * 1000 // 24 hours
+}));
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(
   '/test-uploads',
@@ -47,5 +57,6 @@ app.use('/api/measurements', measurementRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/sleep', sleepRoutes);
 app.use('/api/workouts', workoutRoutes);
+app.use('/api/auth', authRoutes);
 
 module.exports = app;

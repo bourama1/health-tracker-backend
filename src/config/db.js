@@ -194,7 +194,10 @@ db.serialize(() => {
       date TEXT UNIQUE,
       front_path TEXT,
       side_path TEXT,
-      back_path TEXT
+      back_path TEXT,
+      front_google_id TEXT,
+      side_google_id TEXT,
+      back_google_id TEXT
     )`);
 
   safeRun(`CREATE TABLE IF NOT EXISTS sleep (
@@ -221,6 +224,9 @@ db.serialize(() => {
   addCol('photos', 'front_path', 'TEXT');
   addCol('photos', 'side_path', 'TEXT');
   addCol('photos', 'back_path', 'TEXT');
+  addCol('photos', 'front_google_id', 'TEXT');
+  addCol('photos', 'side_google_id', 'TEXT');
+  addCol('photos', 'back_google_id', 'TEXT');
   addCol('sleep', 'wake_time', 'TEXT');
   addCol('sleep', 'sleep_score', 'INTEGER');
 

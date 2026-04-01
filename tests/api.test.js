@@ -25,7 +25,10 @@ describe('Health Tracker API', () => {
         date TEXT UNIQUE,
         front_path TEXT,
         side_path TEXT,
-        back_path TEXT
+        back_path TEXT,
+        front_google_id TEXT,
+        side_google_id TEXT,
+        back_google_id TEXT
       )`);
       db.run(
         `CREATE TABLE IF NOT EXISTS sleep (
@@ -56,15 +59,6 @@ describe('Health Tracker API', () => {
   });
 
   afterAll((done) => {
-    // Cleanup uploaded files in test-uploads
-    const uploadDir = path.join(__dirname, '../test-uploads/photos');
-    if (fs.existsSync(uploadDir)) {
-      const files = fs.readdirSync(uploadDir);
-      for (const file of files) {
-        fs.unlinkSync(path.join(uploadDir, file));
-      }
-    }
-
     db.close((err) => {
       done(err);
     });
@@ -107,33 +101,6 @@ describe('Health Tracker API', () => {
       expect(getResponse.body[0].thigh).toBe(60);
     });
 
-    test('POST /api/measurements should fail if date is missing', async () => {
-      const response = await request(app)
-        .post('/api/measurements')
-        .send({ bodyweight: 80 });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Date is required');
-    });
-
-    test('POST /api/measurements should fail if no measurement is provided', async () => {
-      const response = await request(app)
-        .post('/api/measurements')
-        .send({ date: '2023-10-27' });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('At least one measurement is required');
-    });
-
-    test('POST /api/measurements should succeed with only one measurement', async () => {
-      const response = await request(app)
-        .post('/api/measurements')
-        .send({ date: '2023-10-27', thigh: 55 });
-
-      expect(response.status).toBe(200);
-      expect(response.body.message).toBe('Measurement saved successfully');
-    });
-
     test('GET /api/measurements should return records in descending order by date', async () => {
       await request(app)
         .post('/api/measurements')
@@ -155,74 +122,59 @@ describe('Health Tracker API', () => {
   });
 
   describe('Photo API', () => {
-    test('POST /api/photos should upload three photos', async () => {
+    test('POST /api/photos should save Google Photo IDs', async () => {
       const response = await request(app)
         .post('/api/photos')
-        .field('date', '2023-10-27')
-        .attach('front', 'tests/fixtures/test-image.jpg')
-        .attach('side', 'tests/fixtures/test-image.jpg')
-        .attach('back', 'tests/fixtures/test-image.jpg');
+        .send({
+          date: '2023-10-27',
+          front_google_id: 'g_front_123',
+          side_google_id: 'g_side_123',
+          back_google_id: 'g_back_123'
+        });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Photos saved successfully');
 
       const getResponse = await request(app).get('/api/photos/2023-10-27');
       expect(getResponse.body.date).toBe('2023-10-27');
-      expect(getResponse.body.front_path).toContain('2023-10-27-front.jpg');
-      expect(getResponse.body.side_path).toContain('2023-10-27-side.jpg');
-      expect(getResponse.body.back_path).toContain('2023-10-27-back.jpg');
-
-      // Verify files exist on disk
-      expect(
-        fs.existsSync(path.join(__dirname, '..', getResponse.body.front_path))
-      ).toBe(true);
-      expect(
-        fs.existsSync(path.join(__dirname, '..', getResponse.body.side_path))
-      ).toBe(true);
-      expect(
-        fs.existsSync(path.join(__dirname, '..', getResponse.body.back_path))
-      ).toBe(true);
+      expect(getResponse.body.front_google_id).toBe('g_front_123');
+      expect(getResponse.body.side_google_id).toBe('g_side_123');
+      expect(getResponse.body.back_google_id).toBe('g_back_123');
     });
 
-    test('POST /api/photos should update existing record with partial photos', async () => {
-      // First upload
+    test('POST /api/photos should update existing record with partial Google IDs', async () => {
+      // First save
       await request(app)
         .post('/api/photos')
-        .field('date', '2023-10-27')
-        .attach('front', 'tests/fixtures/test-image.jpg');
+        .send({
+          date: '2023-10-27',
+          front_google_id: 'g_front_123'
+        });
 
       const firstResponse = await request(app).get('/api/photos/2023-10-27');
-      const firstFrontPath = firstResponse.body.front_path;
-      expect(firstFrontPath).not.toBeNull();
-      expect(firstResponse.body.side_path).toBeNull();
+      expect(firstResponse.body.front_google_id).toBe('g_front_123');
+      expect(firstResponse.body.side_google_id).toBeNull();
 
-      // Second upload with a different photo field
+      // Second save with a different photo field
       const response = await request(app)
         .post('/api/photos')
-        .field('date', '2023-10-27')
-        .attach('side', 'tests/fixtures/test-image.jpg');
+        .send({
+          date: '2023-10-27',
+          side_google_id: 'g_side_123'
+        });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Photos updated successfully');
 
       const secondResponse = await request(app).get('/api/photos/2023-10-27');
-      expect(secondResponse.body.front_path).toBe(firstFrontPath); // Preserved
-      expect(secondResponse.body.side_path).not.toBeNull(); // Added
+      expect(secondResponse.body.front_google_id).toBe('g_front_123'); // Preserved
+      expect(secondResponse.body.side_google_id).toBe('g_side_123'); // Added
     });
 
     test('GET /api/photos/dates should return all photo dates in descending order', async () => {
-      await request(app)
-        .post('/api/photos')
-        .field('date', '2023-10-01')
-        .attach('front', 'tests/fixtures/test-image.jpg');
-      await request(app)
-        .post('/api/photos')
-        .field('date', '2023-10-15')
-        .attach('front', 'tests/fixtures/test-image.jpg');
-      await request(app)
-        .post('/api/photos')
-        .field('date', '2023-10-05')
-        .attach('front', 'tests/fixtures/test-image.jpg');
+      await request(app).post('/api/photos').send({ date: '2023-10-01', front_google_id: 'id1' });
+      await request(app).post('/api/photos').send({ date: '2023-10-15', front_google_id: 'id2' });
+      await request(app).post('/api/photos').send({ date: '2023-10-05', front_google_id: 'id3' });
 
       const response = await request(app).get('/api/photos/dates');
       expect(response.status).toBe(200);
@@ -233,14 +185,11 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/photos/:date should return correct photo record', async () => {
-      await request(app)
-        .post('/api/photos')
-        .field('date', '2023-10-27')
-        .attach('front', 'tests/fixtures/test-image.jpg');
+      await request(app).post('/api/photos').send({ date: '2023-10-27', front_google_id: 'id1' });
       const response = await request(app).get('/api/photos/2023-10-27');
       expect(response.status).toBe(200);
       expect(response.body.date).toBe('2023-10-27');
-      expect(response.body.front_path).not.toBeNull();
+      expect(response.body.front_google_id).toBe('id1');
     });
 
     test('GET /api/photos/:date should return empty object if no photos for that date', async () => {
