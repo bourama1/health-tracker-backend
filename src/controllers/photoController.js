@@ -36,8 +36,15 @@ const getAuthorizedClient = async (req) => {
 
 // List user's Google Photos
 exports.listGooglePhotos = async (req, res) => {
+  let tokenInfoDiagnostic = 'not_attempted';
+  let albumDiagnostic = 'not_attempted';
+
   if (!req.session.user || !req.session.tokens) {
-    return res.status(401).json({ error: 'Not authenticated with Google' });
+    return res.status(401).json({ 
+      error: 'Not authenticated with Google',
+      activeScopes: 'none',
+      diagnostic: { tokenInfo: tokenInfoDiagnostic, albumCheck: albumDiagnostic }
+    });
   }
 
   try {
@@ -46,7 +53,6 @@ exports.listGooglePhotos = async (req, res) => {
     
     // Diagnostic 1: Check what Google thinks of this token
     console.log('[Google Photos] Diagnostic: Checking token info...');
-    let tokenInfoDiagnostic = 'not_attempted';
     try {
       const tokenInfo = await client.getTokenInfo(accessToken);
       console.log('[Google Photos] Token Info Scopes:', tokenInfo.scopes);
@@ -58,7 +64,6 @@ exports.listGooglePhotos = async (req, res) => {
 
     // Diagnostic 2: Try to list albums
     console.log('[Google Photos] Diagnostic: Attempting to list albums...');
-    let albumDiagnostic = 'not_attempted';
     try {
       await axios.get('https://photoslibrary.googleapis.com/v1/albums', {
         params: { pageSize: 1 },
@@ -87,7 +92,7 @@ exports.listGooglePhotos = async (req, res) => {
     const googleError = error.response?.data || error.message;
     console.error('[Google Photos] Error listing media items:', JSON.stringify(googleError));
     const status = error.response?.status || 500;
-    const message = error.response?.data?.error?.message || 'Failed to list Google Photos';
+    const message = error.response?.data?.error?.message || error.message || 'Failed to list Google Photos';
     
     res.status(status).json({ 
       error: message,
