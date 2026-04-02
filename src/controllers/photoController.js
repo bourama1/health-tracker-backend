@@ -44,9 +44,20 @@ exports.listGooglePhotos = async (req, res) => {
     const client = await getAuthorizedClient(req);
     const accessToken = client.credentials.access_token;
     
+    // Diagnostic: Try to list albums first to see if it's a general scope issue
+    console.log('[Google Photos] Diagnostic: Attempting to list albums...');
+    try {
+      await axios.get('https://photoslibrary.googleapis.com/v1/albums', {
+        params: { pageSize: 1 },
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      console.log('[Google Photos] Diagnostic: Albums fetch successful!');
+    } catch (albumError) {
+      console.error('[Google Photos] Diagnostic: Albums fetch failed:', albumError.response?.data || albumError.message);
+    }
+
     console.log('[Google Photos] Fetching media items with direct axios...');
     
-    // Explicit axios GET with mandatory headers
     const response = await axios.get('https://photoslibrary.googleapis.com/v1/mediaItems', {
       params: { pageSize: 50 },
       headers: {
@@ -66,7 +77,8 @@ exports.listGooglePhotos = async (req, res) => {
     res.status(status).json({ 
       error: message,
       details: error.response?.data?.error || null,
-      activeScopes: req.session.tokens?.scope || 'none'
+      activeScopes: req.session.tokens?.scope || 'none',
+      diagnostic: 'Albums check performed on server'
     });
   }
 };
