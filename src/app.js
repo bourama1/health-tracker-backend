@@ -44,14 +44,16 @@ app.use(express.json());
 
 // Session configuration
 const isProd = process.env.NODE_ENV === 'production';
-app.use(cookieSession({
-  name: 'session',
-  keys: [process.env.SESSION_KEY || 'secret-key'],
-  maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  sameSite: isProd ? 'none' : 'lax',
-  secure: isProd,
-  httpOnly: true
-}));
+app.use(
+  cookieSession({
+    name: 'session',
+    keys: [process.env.SESSION_KEY || 'secret-key'],
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: isProd ? 'none' : 'lax',
+    secure: isProd,
+    httpOnly: true,
+  })
+);
 
 // Test-only middleware to mock authentication
 if (process.env.NODE_ENV === 'test') {

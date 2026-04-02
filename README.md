@@ -9,9 +9,9 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
 - **Progress Photos:** Upload and manage front, side, and back view photos. Supports local storage and Google Drive integration.
 - **Sleep Tracking:** Log bedtime, wake time, resting heart rate (RHR), and sleep quality metrics (sleep score, deep/REM sleep).
 - **Workout Management:**
-    - Comprehensive exercise database (auto-seeded).
-    - Create and manage personalized workout plans and days.
-    - Log workout sessions with detailed set-by-set tracking (weight, reps, RPE).
+  - Comprehensive exercise database (auto-seeded).
+  - Create and manage personalized workout plans and days.
+  - Log workout sessions with detailed set-by-set tracking (weight, reps, RPE).
 - **Database:** Support for both SQLite (local development) and PostgreSQL (production).
 
 ## 🛠 Tech Stack
@@ -32,21 +32,25 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
 ## ⚙️ Setup
 
 1.  **Clone the repository:**
+
     ```bash
     git clone https://github.com/yourusername/health-tracker-backend.git
     cd health-tracker-backend
     ```
 
 2.  **Install dependencies:**
+
     ```bash
     npm install
     ```
 
 3.  **Configure environment variables:**
     Copy the `.env.example` file to `.env` and fill in your credentials.
+
     ```bash
     cp .env.example .env
     ```
+
     Essential variables:
     - `GOOGLE_CLIENT_ID`: Your Google OAuth2 Client ID.
     - `GOOGLE_CLIENT_SECRET`: Your Google OAuth2 Client Secret.
@@ -70,6 +74,7 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
 ## 🧪 Running Tests
 
 The project includes a comprehensive test suite using Jest.
+
 ```bash
 npm test
 ```

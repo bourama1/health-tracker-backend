@@ -8,7 +8,8 @@ const getOAuth2Client = () => {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+    process.env.GOOGLE_REDIRECT_URI ||
+      'http://localhost:5000/api/auth/google/callback'
   );
 };
 
@@ -18,7 +19,7 @@ router.get('/google', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    prompt: 'consent'
+    prompt: 'consent',
   });
   res.redirect(url);
 });
@@ -28,10 +29,22 @@ router.get('/google/callback', async (req, res) => {
   const { code } = req.query;
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const oauth2Client = getOAuth2Client();
-  
+
   try {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
+
+    // Verify that the Photos scope was actually granted
+    const grantedScopes = (tokens.scope || '').split(' ');
+    const requiredScope =
+      'https://www.googleapis.com/auth/photoslibrary.readonly';
+    if (!grantedScopes.includes(requiredScope)) {
+      console.error('[Google Auth] Missing required scope:', requiredScope);
+      console.error('[Google Auth] Granted scopes:', tokens.scope);
+      return res.redirect(
+        `${frontendUrl}/?auth=failure&reason=missing_photos_scope`
+      );
+    }
 
     // Fetch user profile info
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
@@ -43,7 +56,7 @@ router.get('/google/callback', async (req, res) => {
       id: userInfo.data.id,
       email: userInfo.data.email,
       name: userInfo.data.name,
-      picture: userInfo.data.picture
+      picture: userInfo.data.picture,
     };
 
     // Redirect to root, frontend will handle view

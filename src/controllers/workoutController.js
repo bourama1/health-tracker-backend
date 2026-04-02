@@ -186,7 +186,8 @@ exports.getPlans = async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   try {
-    const rows = await dbAll(`
+    const rows = await dbAll(
+      `
       SELECT
         wp.id as plan_id, wp.name as plan_name, wp.description,
         wd.id as day_id, wd.name as day_name, wd.day_order,
@@ -200,7 +201,9 @@ exports.getPlans = async (req, res) => {
       LEFT JOIN exercises e ON wde.exercise_id = e.id
       WHERE wp.user_id = ?
       ORDER BY wp.id, wd.day_order, wde.exercise_order
-    `, [req.session.user.id]);
+    `,
+      [req.session.user.id]
+    );
 
     const plansMap = {};
     rows.forEach((row) => {
@@ -310,7 +313,10 @@ exports.deletePlan = async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   try {
-    await dbRun(`DELETE FROM workout_plans WHERE id = ? AND user_id = ?`, [req.params.id, req.session.user.id]);
+    await dbRun(`DELETE FROM workout_plans WHERE id = ? AND user_id = ?`, [
+      req.params.id,
+      req.session.user.id,
+    ]);
     res.json({ message: 'Plan deleted' });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -584,15 +590,19 @@ exports.getStats = async (req, res) => {
        WHERE ws.user_id = ? AND wsl.is_pr = 1`,
       [req.session.user.id]
     );
-    const recentPRs = await dbAll(`
+    const recentPRs = await dbAll(
+      `
       SELECT wsl.exercise_id, e.name, wsl.weight, wsl.reps, ws.date
       FROM workout_session_logs wsl
       JOIN exercises e ON wsl.exercise_id = e.id
       JOIN workout_sessions ws ON wsl.session_id = ws.id
       WHERE ws.user_id = ? AND wsl.is_pr = 1
       ORDER BY ws.date DESC LIMIT 5
-    `, [req.session.user.id]);
-    const muscleVolume = await dbAll(`
+    `,
+      [req.session.user.id]
+    );
+    const muscleVolume = await dbAll(
+      `
       SELECT e.primary_muscles as muscle, SUM(COALESCE(wsl.weight,0) * COALESCE(wsl.reps,0)) as volume
       FROM workout_session_logs wsl
       JOIN exercises e ON wsl.exercise_id = e.id
@@ -600,7 +610,9 @@ exports.getStats = async (req, res) => {
       WHERE ws.user_id = ?
       GROUP BY e.primary_muscles
       ORDER BY volume DESC LIMIT 10
-    `, [req.session.user.id]);
+    `,
+      [req.session.user.id]
+    );
     res.json({ totalSessions, totalSets, totalPRs, recentPRs, muscleVolume });
   } catch (err) {
     res.status(400).json({ error: err.message });

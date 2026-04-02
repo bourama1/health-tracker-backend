@@ -123,14 +123,12 @@ describe('Health Tracker API', () => {
 
   describe('Photo API', () => {
     test('POST /api/photos should save Google Photo IDs', async () => {
-      const response = await request(app)
-        .post('/api/photos')
-        .send({
-          date: '2023-10-27',
-          front_google_id: 'g_front_123',
-          side_google_id: 'g_side_123',
-          back_google_id: 'g_back_123'
-        });
+      const response = await request(app).post('/api/photos').send({
+        date: '2023-10-27',
+        front_google_id: 'g_front_123',
+        side_google_id: 'g_side_123',
+        back_google_id: 'g_back_123',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Photos saved successfully');
@@ -144,24 +142,20 @@ describe('Health Tracker API', () => {
 
     test('POST /api/photos should update existing record with partial Google IDs', async () => {
       // First save
-      await request(app)
-        .post('/api/photos')
-        .send({
-          date: '2023-10-27',
-          front_google_id: 'g_front_123'
-        });
+      await request(app).post('/api/photos').send({
+        date: '2023-10-27',
+        front_google_id: 'g_front_123',
+      });
 
       const firstResponse = await request(app).get('/api/photos/2023-10-27');
       expect(firstResponse.body.front_google_id).toBe('g_front_123');
       expect(firstResponse.body.side_google_id).toBeNull();
 
       // Second save with a different photo field
-      const response = await request(app)
-        .post('/api/photos')
-        .send({
-          date: '2023-10-27',
-          side_google_id: 'g_side_123'
-        });
+      const response = await request(app).post('/api/photos').send({
+        date: '2023-10-27',
+        side_google_id: 'g_side_123',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Photos updated successfully');
@@ -172,9 +166,15 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/photos/dates should return all photo dates in descending order', async () => {
-      await request(app).post('/api/photos').send({ date: '2023-10-01', front_google_id: 'id1' });
-      await request(app).post('/api/photos').send({ date: '2023-10-15', front_google_id: 'id2' });
-      await request(app).post('/api/photos').send({ date: '2023-10-05', front_google_id: 'id3' });
+      await request(app)
+        .post('/api/photos')
+        .send({ date: '2023-10-01', front_google_id: 'id1' });
+      await request(app)
+        .post('/api/photos')
+        .send({ date: '2023-10-15', front_google_id: 'id2' });
+      await request(app)
+        .post('/api/photos')
+        .send({ date: '2023-10-05', front_google_id: 'id3' });
 
       const response = await request(app).get('/api/photos/dates');
       expect(response.status).toBe(200);
@@ -185,7 +185,9 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/photos/:date should return correct photo record', async () => {
-      await request(app).post('/api/photos').send({ date: '2023-10-27', front_google_id: 'id1' });
+      await request(app)
+        .post('/api/photos')
+        .send({ date: '2023-10-27', front_google_id: 'id1' });
       const response = await request(app).get('/api/photos/2023-10-27');
       expect(response.status).toBe(200);
       expect(response.body.date).toBe('2023-10-27');
