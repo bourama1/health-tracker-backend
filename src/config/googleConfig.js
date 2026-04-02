@@ -10,7 +10,6 @@ const oauth2Client = new google.auth.OAuth2(
 module.exports = {
   oauth2Client,
   scopes: [
-    'https://www.googleapis.com/auth/photoslibrary',
     'https://www.googleapis.com/auth/photoslibrary.readonly',
     'openid',
     'profile',

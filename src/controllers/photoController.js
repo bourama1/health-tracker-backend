@@ -42,12 +42,18 @@ exports.listGooglePhotos = async (req, res) => {
 
   try {
     const client = await getAuthorizedClient(req);
-    console.log('[Google Photos] Fetching media items using authorized client...');
+    const accessToken = client.credentials.access_token;
     
-    // Use the official client.request method
-    const response = await client.request({
-      url: 'https://photoslibrary.googleapis.com/v1/mediaItems',
-      params: { pageSize: 50 }
+    console.log('[Google Photos] Fetching media items with direct axios...');
+    
+    // Explicit axios GET with mandatory headers
+    const response = await axios.get('https://photoslibrary.googleapis.com/v1/mediaItems', {
+      params: { pageSize: 50 },
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
     });
     
     res.json(response.data);
@@ -122,13 +128,18 @@ exports.getPhotosByDate = async (req, res) => {
 
       try {
         const client = await getAuthorizedClient(req);
+        const accessToken = client.credentials.access_token;
         const ids = [row.front_google_id, row.side_google_id, row.back_google_id].filter(Boolean);
         
-        // Fetch media items details using the official client.request
-        const response = await client.request({
-          url: 'https://photoslibrary.googleapis.com/v1/mediaItems:batchGet',
-          method: 'POST',
-          data: { mediaItemIds: ids }
+        // Fetch media items details using direct axios POST
+        const response = await axios.post('https://photoslibrary.googleapis.com/v1/mediaItems:batchGet', {
+          mediaItemIds: ids
+        }, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
         });
 
         const mediaItems = response.data.mediaItemResults || [];
