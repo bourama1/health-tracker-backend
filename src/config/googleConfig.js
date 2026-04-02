@@ -11,6 +11,7 @@ module.exports = {
   oauth2Client,
   scopes: [
     'https://www.googleapis.com/auth/photoslibrary',
+    'https://www.googleapis.com/auth/photoslibrary.readonly',
     'openid',
     'profile',
     'email'
