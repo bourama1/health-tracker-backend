@@ -15,13 +15,14 @@ router.get('/google', (req, res) => {
 // Google login callback
 router.get('/google/callback', async (req, res) => {
   const { code } = req.query;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   try {
     const { tokens } = await oauth2Client.getToken(code);
     req.session.tokens = tokens;
-    res.redirect('http://localhost:3000/photos?auth=success');
+    res.redirect(`${frontendUrl}/photos?auth=success`);
   } catch (error) {
     console.error('Error during Google Auth callback:', error);
-    res.redirect('http://localhost:3000/photos?auth=failure');
+    res.redirect(`${frontendUrl}/photos?auth=failure`);
   }
 });
 
