@@ -2,12 +2,36 @@ const db = require('../config/db');
 const { oauth2Client } = require('../config/googleConfig');
 const axios = require('axios');
 
-// Helper to get authorized axios instance
-const getPhotosClient = (tokens) => {
+// Helper to get authorized axios instance with refresh logic
+const getPhotosClient = async (req) => {
+  if (!req.session || !req.session.tokens) {
+    throw new Error('No tokens in session');
+  }
+
+  // Set credentials from session
+  oauth2Client.setCredentials(req.session.tokens);
+
+  // Check if token is expired and refresh if necessary
+  const now = Date.now();
+  const expiryDate = req.session.tokens.expiry_date;
+  
+  if (expiryDate && (expiryDate - now < 60000)) { // Refresh if less than 1 minute left
+    try {
+      const { tokens } = await oauth2Client.refreshAccessToken();
+      req.session.tokens = tokens; // Update session with new tokens
+      oauth2Client.setCredentials(tokens);
+    } catch (error) {
+      console.error('Error refreshing access token:', error);
+      throw error;
+    }
+  }
+
+  const currentTokens = oauth2Client.credentials;
+
   return axios.create({
     baseURL: 'https://photoslibrary.googleapis.com/v1',
     headers: {
-      Authorization: `Bearer ${tokens.access_token}`,
+      Authorization: `Bearer ${currentTokens.access_token}`,
       'Content-Type': 'application/json'
     }
   });
@@ -23,14 +47,16 @@ exports.listGooglePhotos = async (req, res) => {
   }
 
   try {
-    const client = getPhotosClient(req.session.tokens);
+    const client = await getPhotosClient(req);
     const response = await client.get('/mediaItems', {
       params: { pageSize: 50 }
     });
     res.json(response.data);
   } catch (error) {
     console.error('Error listing Google Photos:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Failed to list Google Photos' });
+    const status = error.response?.status || 500;
+    const message = error.response?.data?.error?.message || 'Failed to list Google Photos';
+    res.status(status).json({ error: message });
   }
 };
 
@@ -90,11 +116,10 @@ exports.getPhotosByDate = async (req, res) => {
       }
 
       try {
-        const client = getPhotosClient(req.session.tokens);
+        const client = await getPhotosClient(req);
         const ids = [row.front_google_id, row.side_google_id, row.back_google_id].filter(Boolean);
         
         // Fetch media items details
-        // Note: batchesGet only supports up to 50 IDs
         const response = await client.post('/mediaItems:batchGet', {
           mediaItemIds: ids
         });
