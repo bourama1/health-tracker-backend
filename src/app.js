@@ -50,6 +50,15 @@ app.use(cookieSession({
   httpOnly: true
 }));
 
+// Test-only middleware to mock authentication
+if (process.env.NODE_ENV === 'test') {
+  app.use((req, res, next) => {
+    req.session = req.session || {};
+    req.session.user = { id: 'test-user-id', name: 'Test User' };
+    next();
+  });
+}
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(
   '/test-uploads',

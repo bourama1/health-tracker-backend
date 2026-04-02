@@ -266,6 +266,7 @@ db.serialize(() => {
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_plans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
       name TEXT,
       description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -302,6 +303,7 @@ db.serialize(() => {
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
       day_id INTEGER,
       date TEXT,
       notes TEXT,
