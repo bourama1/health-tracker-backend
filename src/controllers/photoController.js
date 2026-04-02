@@ -2,13 +2,12 @@ const db = require('../config/db');
 const { google } = require('googleapis');
 const axios = require('axios');
 
-// Helper to get authorized axios instance with refresh logic
-const getPhotosClient = async (req) => {
+// Helper to get authorized OAuth2 client with refresh logic
+const getAuthorizedClient = async (req) => {
   if (!req.session || !req.session.tokens) {
     throw new Error('No tokens in session');
   }
 
-  // Use a fresh client for every request to be thread-safe
   const client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -17,57 +16,47 @@ const getPhotosClient = async (req) => {
 
   client.setCredentials(req.session.tokens);
 
-  // Check if token is expired and refresh if necessary
   const now = Date.now();
   const expiryDate = req.session.tokens.expiry_date;
   
-  if (expiryDate && (expiryDate - now < 300000)) { // Refresh if less than 5 minutes left
+  if (expiryDate && (expiryDate - now < 300000)) {
     try {
       console.log('[Google Auth] Refreshing access token...');
       const { tokens } = await client.refreshAccessToken();
-      // Merge tokens to preserve refresh_token
       req.session.tokens = { ...req.session.tokens, ...tokens };
       client.setCredentials(req.session.tokens);
-      console.log('[Google Auth] Token refreshed successfully');
     } catch (error) {
       console.error('[Google Auth] Error refreshing access token:', error.message);
       throw error;
     }
   }
 
-  const currentTokens = client.credentials;
-
-  return axios.create({
-    baseURL: 'https://photoslibrary.googleapis.com/v1',
-    headers: {
-      Authorization: `Bearer ${currentTokens.access_token}`,
-      'Content-Type': 'application/json'
-    }
-  });
+  return client;
 };
 
 // List user's Google Photos
 exports.listGooglePhotos = async (req, res) => {
-  if (!req.session.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  if (!req.session || !req.session.tokens) {
+  if (!req.session.user || !req.session.tokens) {
     return res.status(401).json({ error: 'Not authenticated with Google' });
   }
 
   try {
-    const client = await getPhotosClient(req);
-    console.log('[Google Photos] Active scopes in session:', req.session.tokens.scope);
-    console.log('[Google Photos] Fetching media items...');
-    const response = await client.get('/mediaItems', {
+    const client = await getAuthorizedClient(req);
+    console.log('[Google Photos] Fetching media items using authorized client...');
+    
+    // Use the official client.request method
+    const response = await client.request({
+      url: 'https://photoslibrary.googleapis.com/v1/mediaItems',
       params: { pageSize: 50 }
     });
+    
     res.json(response.data);
   } catch (error) {
     const googleError = error.response?.data || error.message;
     console.error('[Google Photos] Error listing media items:', JSON.stringify(googleError));
     const status = error.response?.status || 500;
     const message = error.response?.data?.error?.message || 'Failed to list Google Photos';
+    
     res.status(status).json({ 
       error: message,
       details: error.response?.data?.error || null,
@@ -132,12 +121,14 @@ exports.getPhotosByDate = async (req, res) => {
       }
 
       try {
-        const client = await getPhotosClient(req);
+        const client = await getAuthorizedClient(req);
         const ids = [row.front_google_id, row.side_google_id, row.back_google_id].filter(Boolean);
         
-        // Fetch media items details
-        const response = await client.post('/mediaItems:batchGet', {
-          mediaItemIds: ids
+        // Fetch media items details using the official client.request
+        const response = await client.request({
+          url: 'https://photoslibrary.googleapis.com/v1/mediaItems:batchGet',
+          method: 'POST',
+          data: { mediaItemIds: ids }
         });
 
         const mediaItems = response.data.mediaItemResults || [];
