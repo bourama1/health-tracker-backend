@@ -11,26 +11,22 @@ const getAuthorizedClient = async (req) => {
   const client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI ||
-      'http://localhost:5000/api/auth/google/callback'
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
   );
 
   client.setCredentials(req.session.tokens);
 
   const now = Date.now();
   const expiryDate = req.session.tokens.expiry_date;
-
-  if (expiryDate && expiryDate - now < 300000) {
+  
+  if (expiryDate && (expiryDate - now < 300000)) {
     try {
       console.log('[Google Auth] Refreshing access token...');
       const { tokens } = await client.refreshAccessToken();
       req.session.tokens = { ...req.session.tokens, ...tokens };
       client.setCredentials(req.session.tokens);
     } catch (error) {
-      console.error(
-        '[Google Auth] Error refreshing access token:',
-        error.message
-      );
+      console.error('[Google Auth] Error refreshing access token:', error.message);
       throw error;
     }
   }
@@ -44,20 +40,17 @@ exports.listGooglePhotos = async (req, res) => {
   let albumDiagnostic = 'not_attempted';
 
   if (!req.session.user || !req.session.tokens) {
-    return res.status(401).json({
+    return res.status(401).json({ 
       error: 'Not authenticated with Google',
       activeScopes: 'none',
-      diagnostic: {
-        tokenInfo: tokenInfoDiagnostic,
-        albumCheck: albumDiagnostic,
-      },
+      diagnostic: { tokenInfo: tokenInfoDiagnostic, albumCheck: albumDiagnostic }
     });
   }
 
   try {
     const client = await getAuthorizedClient(req);
     const accessToken = client.credentials.access_token;
-
+    
     // Diagnostic 1: Check what Google thinks of this token
     console.log('[Google Photos] Diagnostic: Checking token info...');
     try {
@@ -66,10 +59,7 @@ exports.listGooglePhotos = async (req, res) => {
       console.log('[Google Photos] Token Audience:', tokenInfo.aud);
       tokenInfoDiagnostic = `scopes: ${tokenInfo.scopes.join(', ')} | aud: ${tokenInfo.aud}`;
     } catch (infoError) {
-      console.error(
-        '[Google Photos] Token info check failed:',
-        infoError.message
-      );
+      console.error('[Google Photos] Token info check failed:', infoError.message);
       tokenInfoDiagnostic = `failed: ${infoError.message}`;
     }
 
@@ -78,53 +68,59 @@ exports.listGooglePhotos = async (req, res) => {
     try {
       await axios.get('https://photoslibrary.googleapis.com/v1/albums', {
         params: { pageSize: 1 },
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { 'Authorization': `Bearer ${accessToken}` }
       });
       console.log('[Google Photos] Diagnostic: Albums fetch successful!');
       albumDiagnostic = 'success';
     } catch (albumError) {
-      console.error(
-        '[Google Photos] Diagnostic: Albums fetch failed:',
-        albumError.response?.data || albumError.message
-      );
+      console.error('[Google Photos] Diagnostic: Albums fetch failed:', albumError.response?.data || albumError.message);
       albumDiagnostic = `failed: ${JSON.stringify(albumError.response?.data || albumError.message)}`;
     }
 
-    console.log('[Google Photos] Fetching media items with direct axios...');
-
-    const response = await axios.get(
-      'https://photoslibrary.googleapis.com/v1/mediaItems',
-      {
+    console.log('[Google Photos] Fetching media items (trying Library API first)...');
+    try {
+      const response = await axios.get('https://photoslibrary.googleapis.com/v1/mediaItems', {
         params: { pageSize: 50 },
         headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      return res.json(response.data);
+    } catch (libError) {
+      if (libError.response?.status === 403) {
+        console.warn('[Google Photos] Library API 403. Trying Picker API (modern/2026 approach)...');
+        try {
+          const pickerResponse = await axios.get('https://photospicker.googleapis.com/v1/mediaItems', {
+            params: { pageSize: 50 },
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            }
+          });
+          return res.json(pickerResponse.data);
+        } catch (pickerError) {
+          console.error('[Google Photos] Picker API failed:', pickerError.response?.data || pickerError.message);
+          throw libError; // Re-throw the original 403 for better diagnostics
+        }
       }
-    );
-
-    res.json(response.data);
+      throw libError;
+    }
   } catch (error) {
     const googleError = error.response?.data || error.message;
-    console.error(
-      '[Google Photos] Error listing media items:',
-      JSON.stringify(googleError)
-    );
+    console.error('[Google Photos] Error listing media items:', JSON.stringify(googleError));
     const status = error.response?.status || 500;
-    const message =
-      error.response?.data?.error?.message ||
-      error.message ||
-      'Failed to list Google Photos';
-
-    res.status(status).json({
+    const message = error.response?.data?.error?.message || error.message || 'Failed to list Google Photos';
+    
+    res.status(status).json({ 
       error: message,
       details: error.response?.data?.error || null,
       activeScopes: req.session.tokens?.scope || 'none',
       diagnostic: {
         tokenInfo: tokenInfoDiagnostic,
-        albumCheck: albumDiagnostic,
-      },
+        albumCheck: albumDiagnostic
+      }
     });
   }
 };
@@ -136,58 +132,34 @@ exports.savePhotos = (req, res) => {
   const { date, front_google_id, side_google_id, back_google_id } = req.body;
   if (!date) return res.status(400).json({ error: 'Date is required' });
 
-  db.get(
-    'SELECT * FROM photos WHERE user_id = ? AND date = ?',
-    [req.session.user.id, date],
-    (err, row) => {
-      if (err) return res.status(400).json({ error: err.message });
+  db.get('SELECT * FROM photos WHERE user_id = ? AND date = ?', [req.session.user.id, date], (err, row) => {
+    if (err) return res.status(400).json({ error: err.message });
 
-      if (row) {
-        // Update
-        const query = `
+    if (row) {
+      // Update
+      const query = `
         UPDATE photos
         SET front_google_id = COALESCE(?, front_google_id),
             side_google_id = COALESCE(?, side_google_id),
             back_google_id = COALESCE(?, back_google_id)
         WHERE user_id = ? AND date = ?
       `;
-        db.run(
-          query,
-          [
-            front_google_id,
-            side_google_id,
-            back_google_id,
-            req.session.user.id,
-            date,
-          ],
-          function (err) {
-            if (err) return res.status(400).json({ error: err.message });
-            res.json({ message: 'Photos updated successfully' });
-          }
-        );
-      } else {
-        // Insert
-        const query = `
+      db.run(query, [front_google_id, side_google_id, back_google_id, req.session.user.id, date], function (err) {
+        if (err) return res.status(400).json({ error: err.message });
+        res.json({ message: 'Photos updated successfully' });
+      });
+    } else {
+      // Insert
+      const query = `
         INSERT INTO photos (user_id, date, front_google_id, side_google_id, back_google_id)
         VALUES (?, ?, ?, ?, ?)
       `;
-        db.run(
-          query,
-          [
-            req.session.user.id,
-            date,
-            front_google_id,
-            side_google_id,
-            back_google_id,
-          ],
-          function (err) {
-            if (err) return res.status(400).json({ error: err.message });
-            res.json({ message: 'Photos saved successfully' });
-          }
-        );
-      }
+      db.run(query, [req.session.user.id, date, front_google_id, side_google_id, back_google_id], function (err) {
+        if (err) return res.status(400).json({ error: err.message });
+        res.json({ message: 'Photos saved successfully' });
+      });
     }
-  );
+  });
 };
 
 exports.getPhotosByDate = async (req, res) => {
@@ -196,7 +168,7 @@ exports.getPhotosByDate = async (req, res) => {
   }
   const { date } = req.params;
   const query = `SELECT * FROM photos WHERE user_id = ? AND date = ?`;
-
+  
   db.get(query, [req.session.user.id, date], async (err, row) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!row) return res.json({});
@@ -211,31 +183,23 @@ exports.getPhotosByDate = async (req, res) => {
       try {
         const client = await getAuthorizedClient(req);
         const accessToken = client.credentials.access_token;
-        const ids = [
-          row.front_google_id,
-          row.side_google_id,
-          row.back_google_id,
-        ].filter(Boolean);
-
+        const ids = [row.front_google_id, row.side_google_id, row.back_google_id].filter(Boolean);
+        
         // Fetch media items details using direct axios POST
-        const response = await axios.post(
-          'https://photoslibrary.googleapis.com/v1/mediaItems:batchGet',
-          {
-            mediaItemIds: ids,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-            },
+        const response = await axios.post('https://photoslibrary.googleapis.com/v1/mediaItems:batchGet', {
+          mediaItemIds: ids
+        }, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
           }
-        );
+        });
 
         const mediaItems = response.data.mediaItemResults || [];
         const result = { ...row };
 
-        mediaItems.forEach((itemResult) => {
+        mediaItems.forEach(itemResult => {
           const item = itemResult.mediaItem;
           if (!item) return;
 
@@ -246,10 +210,7 @@ exports.getPhotosByDate = async (req, res) => {
 
         res.json(result);
       } catch (error) {
-        console.error(
-          'Error fetching Google Photo details:',
-          error.response?.data || error.message
-        );
+        console.error('Error fetching Google Photo details:', error.response?.data || error.message);
         res.json(row); // Return row without fresh URLs
       }
     } else {
