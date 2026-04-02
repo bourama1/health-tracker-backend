@@ -70,7 +70,8 @@ exports.listGooglePhotos = async (req, res) => {
     const message = error.response?.data?.error?.message || 'Failed to list Google Photos';
     res.status(status).json({ 
       error: message,
-      details: error.response?.data?.error || null
+      details: error.response?.data?.error || null,
+      activeScopes: req.session.tokens?.scope || 'none'
     });
   }
 };
