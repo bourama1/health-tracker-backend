@@ -13,6 +13,9 @@ const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
+// Enable trust proxy for secure cookies behind Render/Vercel proxies
+app.set('trust proxy', 1);
+
 // CORS — allow Vercel frontend + local dev
 const allowedOrigins = [
   process.env.FRONTEND_URL,
