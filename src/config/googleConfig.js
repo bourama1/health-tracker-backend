@@ -12,8 +12,10 @@ module.exports = {
   oauth2Client,
   scopes: [
     'https://www.googleapis.com/auth/photoslibrary.readonly',
+    'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
     'openid',
     'profile',
-    'email',
-  ],
+    'email'
+  ]
 };
+
