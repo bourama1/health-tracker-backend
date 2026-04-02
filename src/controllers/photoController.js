@@ -15,6 +15,9 @@ const getPhotosClient = (tokens) => {
 
 // List user's Google Photos
 exports.listGooglePhotos = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   if (!req.session || !req.session.tokens) {
     return res.status(401).json({ error: 'Not authenticated with Google' });
   }
@@ -32,10 +35,13 @@ exports.listGooglePhotos = async (req, res) => {
 };
 
 exports.savePhotos = (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   const { date, front_google_id, side_google_id, back_google_id } = req.body;
   if (!date) return res.status(400).json({ error: 'Date is required' });
 
-  db.get('SELECT * FROM photos WHERE date = ?', [date], (err, row) => {
+  db.get('SELECT * FROM photos WHERE user_id = ? AND date = ?', [req.session.user.id, date], (err, row) => {
     if (err) return res.status(400).json({ error: err.message });
 
     if (row) {
@@ -45,19 +51,19 @@ exports.savePhotos = (req, res) => {
         SET front_google_id = COALESCE(?, front_google_id),
             side_google_id = COALESCE(?, side_google_id),
             back_google_id = COALESCE(?, back_google_id)
-        WHERE date = ?
+        WHERE user_id = ? AND date = ?
       `;
-      db.run(query, [front_google_id, side_google_id, back_google_id, date], function (err) {
+      db.run(query, [front_google_id, side_google_id, back_google_id, req.session.user.id, date], function (err) {
         if (err) return res.status(400).json({ error: err.message });
         res.json({ message: 'Photos updated successfully' });
       });
     } else {
       // Insert
       const query = `
-        INSERT INTO photos (date, front_google_id, side_google_id, back_google_id)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO photos (user_id, date, front_google_id, side_google_id, back_google_id)
+        VALUES (?, ?, ?, ?, ?)
       `;
-      db.run(query, [date, front_google_id, side_google_id, back_google_id], function (err) {
+      db.run(query, [req.session.user.id, date, front_google_id, side_google_id, back_google_id], function (err) {
         if (err) return res.status(400).json({ error: err.message });
         res.json({ message: 'Photos saved successfully' });
       });
@@ -66,17 +72,20 @@ exports.savePhotos = (req, res) => {
 };
 
 exports.getPhotosByDate = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   const { date } = req.params;
-  const query = `SELECT * FROM photos WHERE date = ?`;
+  const query = `SELECT * FROM photos WHERE user_id = ? AND date = ?`;
   
-  db.get(query, [date], async (err, row) => {
+  db.get(query, [req.session.user.id, date], async (err, row) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!row) return res.json({});
 
     // If we have Google IDs, we need to fetch fresh baseUrls
     if (row.front_google_id || row.side_google_id || row.back_google_id) {
       if (!req.session || !req.session.tokens) {
-        // Return without URLs if not logged in
+        // Return without URLs if not logged in to Google
         return res.json(row);
       }
 
@@ -114,8 +123,11 @@ exports.getPhotosByDate = async (req, res) => {
 };
 
 exports.getAllPhotoDates = (req, res) => {
-  const query = `SELECT date FROM photos ORDER BY date DESC`;
-  db.all(query, [], (err, rows) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  const query = `SELECT date FROM photos WHERE user_id = ? ORDER BY date DESC`;
+  db.all(query, [req.session.user.id], (err, rows) => {
     if (err) return res.status(400).json({ error: err.message });
     res.json(rows);
   });

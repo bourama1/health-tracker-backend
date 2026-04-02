@@ -178,6 +178,7 @@ const safeRun = (sql, params = []) => {
 db.serialize(() => {
   safeRun(`CREATE TABLE IF NOT EXISTS measurements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
       date TEXT,
       bodyweight REAL,
       body_fat REAL,
@@ -191,24 +192,28 @@ db.serialize(() => {
 
   safeRun(`CREATE TABLE IF NOT EXISTS photos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT UNIQUE,
+      user_id TEXT,
+      date TEXT,
       front_path TEXT,
       side_path TEXT,
       back_path TEXT,
       front_google_id TEXT,
       side_google_id TEXT,
-      back_google_id TEXT
+      back_google_id TEXT,
+      UNIQUE(user_id, date)
     )`);
 
   safeRun(`CREATE TABLE IF NOT EXISTS sleep (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT UNIQUE,
+      user_id TEXT,
+      date TEXT,
       bedtime TEXT,
       wake_time TEXT,
       rhr INTEGER,
       sleep_score INTEGER,
       deep_sleep_minutes INTEGER,
-      rem_sleep_minutes INTEGER
+      rem_sleep_minutes INTEGER,
+      UNIQUE(user_id, date)
     )`);
 
   const addCol = (table, col, type) => {
@@ -217,6 +222,12 @@ db.serialize(() => {
       : type;
     safeRun(`ALTER TABLE ${table} ADD COLUMN ${col} ${finalType}`);
   };
+
+  addCol('measurements', 'user_id', 'TEXT');
+  addCol('photos', 'user_id', 'TEXT');
+  addCol('sleep', 'user_id', 'TEXT');
+  addCol('workout_plans', 'user_id', 'TEXT');
+  addCol('workout_sessions', 'user_id', 'TEXT');
 
   addCol('measurements', 'forearm', 'REAL');
   addCol('measurements', 'calf', 'REAL');

@@ -62,6 +62,9 @@ db.serialize(() => {
 // ─── Exercises ───────────────────────────────────────────────────────────────
 
 exports.getAllExercises = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const { search, category, muscle, equipment, level, mechanic, force } =
       req.query;
@@ -104,6 +107,9 @@ exports.getAllExercises = async (req, res) => {
 };
 
 exports.getExerciseById = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const rows = await dbAll(`SELECT * FROM exercises WHERE id = ?`, [
       req.params.id,
@@ -123,6 +129,9 @@ exports.getExerciseById = async (req, res) => {
 };
 
 exports.getExerciseFilters = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const [categories, equipment, levels, mechanics, forces] =
       await Promise.all([
@@ -173,6 +182,9 @@ exports.getExerciseFilters = async (req, res) => {
 // ─── Plans ────────────────────────────────────────────────────────────────────
 
 exports.getPlans = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const rows = await dbAll(`
       SELECT
@@ -186,8 +198,9 @@ exports.getPlans = async (req, res) => {
       LEFT JOIN workout_days wd ON wp.id = wd.plan_id
       LEFT JOIN workout_day_exercises wde ON wd.id = wde.day_id
       LEFT JOIN exercises e ON wde.exercise_id = e.id
+      WHERE wp.user_id = ?
       ORDER BY wp.id, wd.day_order, wde.exercise_order
-    `);
+    `, [req.session.user.id]);
 
     const plansMap = {};
     rows.forEach((row) => {
@@ -237,14 +250,17 @@ exports.getPlans = async (req, res) => {
 };
 
 exports.createPlan = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   const { name, description, days } = req.body;
   if (!name) return res.status(400).json({ error: 'Plan name is required' });
 
   try {
     await dbRun('BEGIN TRANSACTION');
     const { lastID: planId } = await dbRun(
-      `INSERT INTO workout_plans (name, description) VALUES (?, ?)`,
-      [name, description]
+      `INSERT INTO workout_plans (user_id, name, description) VALUES (?, ?, ?)`,
+      [req.session.user.id, name, description]
     );
 
     if (days && days.length > 0) {
@@ -290,8 +306,11 @@ exports.createPlan = async (req, res) => {
 };
 
 exports.deletePlan = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
-    await dbRun(`DELETE FROM workout_plans WHERE id = ?`, [req.params.id]);
+    await dbRun(`DELETE FROM workout_plans WHERE id = ? AND user_id = ?`, [req.params.id, req.session.user.id]);
     res.json({ message: 'Plan deleted' });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -301,6 +320,9 @@ exports.deletePlan = async (req, res) => {
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
 exports.saveSession = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   const { day_id, date, notes, logs } = req.body;
   if (!day_id || !date)
     return res.status(400).json({ error: 'day_id and date are required' });
@@ -308,15 +330,19 @@ exports.saveSession = async (req, res) => {
   try {
     await dbRun('BEGIN TRANSACTION');
     const { lastID: sessionId } = await dbRun(
-      `INSERT INTO workout_sessions (day_id, date, notes) VALUES (?, ?, ?)`,
-      [day_id, date, notes || null]
+      `INSERT INTO workout_sessions (user_id, day_id, date, notes) VALUES (?, ?, ?, ?)`,
+      [req.session.user.id, day_id, date, notes || null]
     );
 
     if (logs && logs.length > 0) {
       for (const log of logs) {
+        // Scope PR check to user
         const prCheck = await dbAll(
-          `SELECT MAX(weight) as max_weight FROM workout_session_logs WHERE exercise_id = ?`,
-          [log.exercise_id]
+          `SELECT MAX(wsl.weight) as max_weight 
+           FROM workout_session_logs wsl
+           JOIN workout_sessions ws ON wsl.session_id = ws.id
+           WHERE wsl.exercise_id = ? AND ws.user_id = ?`,
+          [log.exercise_id, req.session.user.id]
         );
         const prevMax = prCheck[0]?.max_weight ?? 0;
         const isPR = log.weight != null && log.weight > prevMax ? 1 : 0;
@@ -351,6 +377,9 @@ exports.saveSession = async (req, res) => {
 };
 
 exports.getSessionHistory = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const { limit = 50 } = req.query;
     const rows = await dbAll(
@@ -368,9 +397,10 @@ exports.getSessionHistory = async (req, res) => {
       JOIN workout_plans wp ON wd.plan_id = wp.id
       LEFT JOIN workout_session_logs wsl ON ws.id = wsl.session_id
       LEFT JOIN exercises e ON wsl.exercise_id = e.id
+      WHERE ws.user_id = ?
       ORDER BY ws.date DESC, ws.id DESC, wsl.exercise_id, wsl.set_number
     `,
-      []
+      [req.session.user.id]
     );
 
     const sessionsMap = {};
@@ -408,11 +438,14 @@ exports.getSessionHistory = async (req, res) => {
 };
 
 exports.getLastSessionForDay = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const { day_id } = req.params;
     const sessions = await dbAll(
-      `SELECT id, date FROM workout_sessions WHERE day_id = ? ORDER BY date DESC LIMIT 1`,
-      [day_id]
+      `SELECT id, date FROM workout_sessions WHERE day_id = ? AND user_id = ? ORDER BY date DESC LIMIT 1`,
+      [day_id, req.session.user.id]
     );
     if (!sessions.length) return res.json(null);
     const logs = await dbAll(
@@ -432,6 +465,9 @@ exports.getLastSessionForDay = async (req, res) => {
 };
 
 exports.getExerciseProgress = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const rows = await dbAll(
       `
@@ -444,11 +480,11 @@ exports.getExerciseProgress = async (req, res) => {
         MAX(wsl.is_pr) as had_pr
       FROM workout_session_logs wsl
       JOIN workout_sessions ws ON wsl.session_id = ws.id
-      WHERE wsl.exercise_id = ?
+      WHERE wsl.exercise_id = ? AND ws.user_id = ?
       GROUP BY ws.id, ws.date
       ORDER BY ws.date ASC
     `,
-      [req.params.exercise_id]
+      [req.params.exercise_id, req.session.user.id]
     );
     res.json(rows);
   } catch (err) {
@@ -457,6 +493,9 @@ exports.getExerciseProgress = async (req, res) => {
 };
 
 exports.getExerciseSuggestion = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const { exercise_id } = req.params;
     const { target_reps, target_rpe } = req.query;
@@ -464,20 +503,21 @@ exports.getExerciseSuggestion = async (req, res) => {
     if (!exercise_id)
       return res.status(400).json({ error: 'exercise_id is required' });
 
-    // Get the most recent session for this exercise
+    // Get the most recent session for this exercise for this user
     const logs = await dbAll(
       `
       SELECT weight, reps, rpe
       FROM workout_session_logs
       WHERE exercise_id = ?
       AND session_id = (
-        SELECT MAX(session_id)
-        FROM workout_session_logs
-        WHERE exercise_id = ?
+        SELECT MAX(ws.id)
+        FROM workout_sessions ws
+        JOIN workout_session_logs wsl ON ws.id = wsl.session_id
+        WHERE wsl.exercise_id = ? AND ws.user_id = ?
       )
       ORDER BY set_number ASC
     `,
-      [exercise_id, exercise_id]
+      [exercise_id, exercise_id, req.session.user.id]
     );
 
     if (!logs.length) {
@@ -522,31 +562,45 @@ exports.getExerciseSuggestion = async (req, res) => {
 };
 
 exports.getStats = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   try {
     const [{ count: totalSessions }] = await dbAll(
-      `SELECT COUNT(*) as count FROM workout_sessions`
+      `SELECT COUNT(*) as count FROM workout_sessions WHERE user_id = ?`,
+      [req.session.user.id]
     );
     const [{ count: totalSets }] = await dbAll(
-      `SELECT COUNT(*) as count FROM workout_session_logs`
+      `SELECT COUNT(*) as count 
+       FROM workout_session_logs wsl
+       JOIN workout_sessions ws ON wsl.session_id = ws.id
+       WHERE ws.user_id = ?`,
+      [req.session.user.id]
     );
     const [{ count: totalPRs }] = await dbAll(
-      `SELECT COUNT(*) as count FROM workout_session_logs WHERE is_pr = 1`
+      `SELECT COUNT(*) as count 
+       FROM workout_session_logs wsl
+       JOIN workout_sessions ws ON wsl.session_id = ws.id
+       WHERE ws.user_id = ? AND wsl.is_pr = 1`,
+      [req.session.user.id]
     );
     const recentPRs = await dbAll(`
       SELECT wsl.exercise_id, e.name, wsl.weight, wsl.reps, ws.date
       FROM workout_session_logs wsl
       JOIN exercises e ON wsl.exercise_id = e.id
       JOIN workout_sessions ws ON wsl.session_id = ws.id
-      WHERE wsl.is_pr = 1
+      WHERE ws.user_id = ? AND wsl.is_pr = 1
       ORDER BY ws.date DESC LIMIT 5
-    `);
+    `, [req.session.user.id]);
     const muscleVolume = await dbAll(`
       SELECT e.primary_muscles as muscle, SUM(COALESCE(wsl.weight,0) * COALESCE(wsl.reps,0)) as volume
       FROM workout_session_logs wsl
       JOIN exercises e ON wsl.exercise_id = e.id
+      JOIN workout_sessions ws ON wsl.session_id = ws.id
+      WHERE ws.user_id = ?
       GROUP BY e.primary_muscles
       ORDER BY volume DESC LIMIT 10
-    `);
+    `, [req.session.user.id]);
     res.json({ totalSessions, totalSets, totalPRs, recentPRs, muscleVolume });
   } catch (err) {
     res.status(400).json({ error: err.message });

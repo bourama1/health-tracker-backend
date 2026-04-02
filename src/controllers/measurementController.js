@@ -1,14 +1,22 @@
 const db = require('../config/db');
 
 exports.getAllMeasurements = (req, res) => {
-  const query = `SELECT * FROM measurements ORDER BY date DESC`;
-  db.all(query, [], (err, rows) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const query = `SELECT * FROM measurements WHERE user_id = ? ORDER BY date DESC`;
+  db.all(query, [req.session.user.id], (err, rows) => {
     if (err) return res.status(400).json({ error: err.message });
     res.json(rows);
   });
 };
 
 exports.createMeasurement = (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
   const {
     date,
     bodyweight,
@@ -46,8 +54,9 @@ exports.createMeasurement = (req, res) => {
       .json({ error: 'At least one measurement is required' });
   }
 
-  const query = `INSERT INTO measurements (date, bodyweight, body_fat, chest, waist, biceps, forearm, calf, thigh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const query = `INSERT INTO measurements (user_id, date, bodyweight, body_fat, chest, waist, biceps, forearm, calf, thigh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   const params = [
+    req.session.user.id,
     date,
     bodyweight,
     body_fat,

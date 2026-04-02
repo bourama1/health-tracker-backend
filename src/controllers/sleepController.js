@@ -1,14 +1,22 @@
 const db = require('../config/db');
 
 exports.getAllSleep = (req, res) => {
-  const query = `SELECT * FROM sleep ORDER BY date DESC`;
-  db.all(query, [], (err, rows) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const query = `SELECT * FROM sleep WHERE user_id = ? ORDER BY date DESC`;
+  db.all(query, [req.session.user.id], (err, rows) => {
     if (err) return res.status(400).json({ error: err.message });
     res.json(rows);
   });
 };
 
 exports.createSleep = (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
   const {
     date,
     bedtime,
@@ -23,9 +31,9 @@ exports.createSleep = (req, res) => {
     return res.status(400).json({ error: 'Date is required' });
   }
 
-  const query = `INSERT INTO sleep (date, bedtime, wake_time, rhr, sleep_score, deep_sleep_minutes, rem_sleep_minutes) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(date) DO UPDATE SET
+  const query = `INSERT INTO sleep (user_id, date, bedtime, wake_time, rhr, sleep_score, deep_sleep_minutes, rem_sleep_minutes) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(user_id, date) DO UPDATE SET
                  bedtime=excluded.bedtime,
                  wake_time=excluded.wake_time,
                  rhr=excluded.rhr,
@@ -34,6 +42,7 @@ exports.createSleep = (req, res) => {
                  rem_sleep_minutes=excluded.rem_sleep_minutes`;
 
   const params = [
+    req.session.user.id,
     date,
     bedtime,
     wake_time,
