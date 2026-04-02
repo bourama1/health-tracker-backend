@@ -57,6 +57,7 @@ exports.listGooglePhotos = async (req, res) => {
 
   try {
     const client = await getPhotosClient(req);
+    console.log('[Google Photos] Active scopes in session:', req.session.tokens.scope);
     console.log('[Google Photos] Fetching media items...');
     const response = await client.get('/mediaItems', {
       params: { pageSize: 50 }

@@ -37,6 +37,7 @@ router.get('/google/callback', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
 
+    console.log('[Google Auth] Granted scopes:', tokens.scope);
     req.session.tokens = tokens;
     req.session.user = {
       id: userInfo.data.id,
