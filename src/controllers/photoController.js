@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { oauth2Client } = require('../config/googleConfig');
+const { google } = require('googleapis');
 const axios = require('axios');
 
 // Helper to get authorized axios instance with refresh logic
@@ -8,25 +8,34 @@ const getPhotosClient = async (req) => {
     throw new Error('No tokens in session');
   }
 
-  // Set credentials from session
-  oauth2Client.setCredentials(req.session.tokens);
+  // Use a fresh client for every request to be thread-safe
+  const client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+  );
+
+  client.setCredentials(req.session.tokens);
 
   // Check if token is expired and refresh if necessary
   const now = Date.now();
   const expiryDate = req.session.tokens.expiry_date;
   
-  if (expiryDate && (expiryDate - now < 60000)) { // Refresh if less than 1 minute left
+  if (expiryDate && (expiryDate - now < 300000)) { // Refresh if less than 5 minutes left
     try {
-      const { tokens } = await oauth2Client.refreshAccessToken();
-      req.session.tokens = tokens; // Update session with new tokens
-      oauth2Client.setCredentials(tokens);
+      console.log('[Google Auth] Refreshing access token...');
+      const { tokens } = await client.refreshAccessToken();
+      // Merge tokens to preserve refresh_token
+      req.session.tokens = { ...req.session.tokens, ...tokens };
+      client.setCredentials(req.session.tokens);
+      console.log('[Google Auth] Token refreshed successfully');
     } catch (error) {
-      console.error('Error refreshing access token:', error);
+      console.error('[Google Auth] Error refreshing access token:', error.message);
       throw error;
     }
   }
 
-  const currentTokens = oauth2Client.credentials;
+  const currentTokens = client.credentials;
 
   return axios.create({
     baseURL: 'https://photoslibrary.googleapis.com/v1',
@@ -48,15 +57,20 @@ exports.listGooglePhotos = async (req, res) => {
 
   try {
     const client = await getPhotosClient(req);
+    console.log('[Google Photos] Fetching media items...');
     const response = await client.get('/mediaItems', {
       params: { pageSize: 50 }
     });
     res.json(response.data);
   } catch (error) {
-    console.error('Error listing Google Photos:', error.response?.data || error.message);
+    const googleError = error.response?.data || error.message;
+    console.error('[Google Photos] Error listing media items:', JSON.stringify(googleError));
     const status = error.response?.status || 500;
     const message = error.response?.data?.error?.message || 'Failed to list Google Photos';
-    res.status(status).json({ error: message });
+    res.status(status).json({ 
+      error: message,
+      details: error.response?.data?.error || null
+    });
   }
 };
 
