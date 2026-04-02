@@ -56,7 +56,8 @@ exports.listGooglePhotos = async (req, res) => {
     try {
       const tokenInfo = await client.getTokenInfo(accessToken);
       console.log('[Google Photos] Token Info Scopes:', tokenInfo.scopes);
-      tokenInfoDiagnostic = `scopes: ${tokenInfo.scopes.join(', ')}`;
+      console.log('[Google Photos] Token Audience:', tokenInfo.aud);
+      tokenInfoDiagnostic = `scopes: ${tokenInfo.scopes.join(', ')} | aud: ${tokenInfo.aud}`;
     } catch (infoError) {
       console.error('[Google Photos] Token info check failed:', infoError.message);
       tokenInfoDiagnostic = `failed: ${infoError.message}`;
