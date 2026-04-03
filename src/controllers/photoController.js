@@ -109,9 +109,3 @@ exports.getAllPhotoDates = (req, res) => {
     res.json(rows);
   });
 };
-
-// No longer need Google-specific methods
-exports.listGooglePhotos = (req, res) =>
-  res
-    .status(410)
-    .json({ error: 'Google Photos API is deprecated in this app.' });

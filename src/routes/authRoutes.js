@@ -34,18 +34,6 @@ router.get('/google/callback', async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    // Verify that the Photos scope was actually granted
-    const grantedScopes = (tokens.scope || '').split(' ');
-    const requiredScope =
-      'https://www.googleapis.com/auth/photoslibrary.readonly';
-    if (!grantedScopes.includes(requiredScope)) {
-      console.error('[Google Auth] Missing required scope:', requiredScope);
-      console.error('[Google Auth] Granted scopes:', tokens.scope);
-      return res.redirect(
-        `${frontendUrl}/?auth=failure&reason=missing_photos_scope`
-      );
-    }
-
     // Fetch user profile info
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();

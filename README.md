@@ -54,7 +54,7 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
     Essential variables:
     - `GOOGLE_CLIENT_ID`: Your Google OAuth2 Client ID.
     - `GOOGLE_CLIENT_SECRET`: Your Google OAuth2 Client Secret.
-    - `SESSION_KEY`: A secret string for session encryption.
+    - `SESSION_SECRET`: A secret string for session encryption.
     - `FRONTEND_URL`: The URL of your frontend application (e.g., `http://localhost:3000`).
 
 4.  **Seed the database:**
