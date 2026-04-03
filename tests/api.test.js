@@ -6,13 +6,13 @@ jest.mock('cloudinary', () => ({
   v2: {
     config: jest.fn(),
     uploader: {
-      upload: jest.fn()
-    }
-  }
+      upload: jest.fn(),
+    },
+  },
 }));
 
 jest.mock('multer-storage-cloudinary', () => ({
-  CloudinaryStorage: jest.fn().mockImplementation(() => ({}))
+  CloudinaryStorage: jest.fn().mockImplementation(() => ({})),
 }));
 
 // Mock multer to bypass stream processing and manually populate req.files
@@ -24,10 +24,10 @@ jest.mock('multer', () => {
       req.files = {
         front: [{ path: 'mock-cloudinary-url-front' }],
         side: [{ path: 'mock-cloudinary-url-side' }],
-        back: [{ path: 'mock-cloudinary-url-back' }]
+        back: [{ path: 'mock-cloudinary-url-back' }],
       };
       next();
-    })
+    }),
   }));
 });
 
@@ -136,9 +136,7 @@ describe('Health Tracker API', () => {
     });
 
     test('POST /api/photos should update existing record with partial uploads', async () => {
-      await request(app)
-        .post('/api/photos')
-        .send({ date: '2023-10-27' });
+      await request(app).post('/api/photos').send({ date: '2023-10-27' });
 
       const response = await request(app)
         .post('/api/photos')
@@ -148,13 +146,19 @@ describe('Health Tracker API', () => {
       expect(response.body.message).toBe('Photos updated successfully');
 
       const secondResponse = await request(app).get('/api/photos/2023-10-27');
-      expect(secondResponse.body.front_path).toBe('mock-cloudinary-url-front'); 
+      expect(secondResponse.body.front_path).toBe('mock-cloudinary-url-front');
     });
 
     test('GET /api/photos/dates should return all photo dates in descending order', async () => {
-      await db.run("INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-01', 'path1')");
-      await db.run("INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-15', 'path2')");
-      await db.run("INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-05', 'path3')");
+      await db.run(
+        "INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-01', 'path1')"
+      );
+      await db.run(
+        "INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-15', 'path2')"
+      );
+      await db.run(
+        "INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-05', 'path3')"
+      );
 
       const response = await request(app).get('/api/photos/dates');
       expect(response.status).toBe(200);
@@ -162,7 +166,9 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/photos/:date should return correct photo record', async () => {
-      await db.run("INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-27', 'path1')");
+      await db.run(
+        "INSERT INTO photos (user_id, date, front_path) VALUES ('test-user-id', '2023-10-27', 'path1')"
+      );
       const response = await request(app).get('/api/photos/2023-10-27');
       expect(response.status).toBe(200);
       expect(response.body.date).toBe('2023-10-27');

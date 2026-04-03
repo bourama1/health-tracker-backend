@@ -19,14 +19,17 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    
+
     const allowedOrigins = [
       frontendUrl,
       'http://localhost:3000',
-      'https://health-tracker-cenc.onrender.com'
+      'https://health-tracker-cenc.onrender.com',
     ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+
+    if (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      process.env.NODE_ENV !== 'production'
+    ) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
