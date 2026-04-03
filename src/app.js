@@ -13,62 +13,61 @@ const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
-// Enable trust proxy for secure cookies behind Render/Vercel proxies
-app.set('trust proxy', 1);
-
-// CORS — allow Vercel frontend + local dev
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:5173',
-].filter(Boolean);
-
+// Middleware
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const corsOptions = {
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    
+    const allowedOrigins = [
+      frontendUrl,
+      'http://localhost:3000',
+      'https://health-tracker-cenc.onrender.com'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
-      console.error(`[CORS] Blocked origin: ${origin}`);
-      callback(new Error(`CORS blocked for origin: ${origin}`));
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Session configuration
-const isProd = process.env.NODE_ENV === 'production';
 app.use(
   cookieSession({
     name: 'session',
-    keys: [process.env.SESSION_KEY || 'secret-key'],
+    keys: [process.env.SESSION_SECRET || 'health-tracker-secret'],
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: isProd ? 'none' : 'lax',
-    secure: isProd,
-    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
   })
 );
 
-// Test-only middleware to mock authentication
+// Bypass authentication for tests
 if (process.env.NODE_ENV === 'test') {
   app.use((req, res, next) => {
-    req.session = req.session || {};
-    req.session.user = { id: 'test-user-id', name: 'Test User' };
+    req.session.user = { id: 'test-user-id', email: 'test@example.com' };
     next();
   });
 }
 
+// Serve uploaded photos statically (for local development if still needed)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use(
-  '/test-uploads',
-  express.static(path.join(__dirname, '../test-uploads'))
-);
+
+// Simple request logger
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  }
+  next();
+});
 
 // Mount Routes
 app.use('/api/measurements', measurementRoutes);

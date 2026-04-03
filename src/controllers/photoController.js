@@ -33,13 +33,13 @@ exports.savePhotos = (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const { date } = req.body;
+  const { date } = req.body || {};
   if (!date) return res.status(400).json({ error: 'Date is required' });
 
   // Extract Cloudinary URLs from the uploaded files
-  const front_path = req.files['front'] ? req.files['front'][0].path : null;
-  const side_path = req.files['side'] ? req.files['side'][0].path : null;
-  const back_path = req.files['back'] ? req.files['back'][0].path : null;
+  const front_path = req.files && req.files['front'] ? req.files['front'][0].path : null;
+  const side_path = req.files && req.files['side'] ? req.files['side'][0].path : null;
+  const back_path = req.files && req.files['back'] ? req.files['back'][0].path : null;
 
   db.get('SELECT * FROM photos WHERE user_id = ? AND date = ?', [req.session.user.id, date], (err, row) => {
     if (err) return res.status(400).json({ error: err.message });
