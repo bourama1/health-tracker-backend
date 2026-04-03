@@ -13,6 +13,8 @@ const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 // Middleware
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const corsOptions = {
