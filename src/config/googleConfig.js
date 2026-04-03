@@ -15,7 +15,6 @@ module.exports = {
     'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
     'openid',
     'profile',
-    'email'
-  ]
+    'email',
+  ],
 };
-
