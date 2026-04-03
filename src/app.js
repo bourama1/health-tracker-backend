@@ -10,9 +10,12 @@ const photoRoutes = require('./routes/photoRoutes');
 const sleepRoutes = require('./routes/sleepRoutes');
 const workoutRoutes = require('./routes/workoutRoutes');
 const authRoutes = require('./routes/authRoutes');
+const fitRoutes = require('./routes/fitRoutes');
 
 const app = express();
 
+// Trust Render's (and any other PaaS) reverse proxy so that
+// req.secure is true and secure cookies are set correctly over HTTPS
 app.set('trust proxy', 1);
 
 // Middleware
@@ -80,5 +83,6 @@ app.use('/api/photos', photoRoutes);
 app.use('/api/sleep', sleepRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/fit', fitRoutes);
 
 module.exports = app;

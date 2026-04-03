@@ -10,5 +10,11 @@ const oauth2Client = new google.auth.OAuth2(
 
 module.exports = {
   oauth2Client,
-  scopes: ['openid', 'profile', 'email'],
+  scopes: [
+    'openid',
+    'profile',
+    'email',
+    'https://www.googleapis.com/auth/fitness.sleep.read',
+    'https://www.googleapis.com/auth/fitness.heart_rate.read',
+  ],
 };
