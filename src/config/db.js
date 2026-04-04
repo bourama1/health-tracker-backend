@@ -210,7 +210,6 @@ db.serialize(() => {
       bedtime TEXT,
       wake_time TEXT,
       rhr INTEGER,
-      sleep_score INTEGER,
       deep_sleep_minutes INTEGER,
       rem_sleep_minutes INTEGER,
       UNIQUE(user_id, date)
@@ -239,10 +238,20 @@ db.serialize(() => {
   addCol('photos', 'side_google_id', 'TEXT');
   addCol('photos', 'back_google_id', 'TEXT');
   addCol('sleep', 'wake_time', 'TEXT');
-  addCol('sleep', 'sleep_score', 'INTEGER');
+  addCol('sleep', 'awake_minutes', 'INTEGER');
+  addCol('sleep', 'light_minutes', 'INTEGER');
 
   if (!isProduction) {
-    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sleep_date ON sleep(date)`);
+    db.run(`DROP INDEX IF EXISTS idx_sleep_date`);
+    db.run(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_sleep_user_date ON sleep(user_id, date)`
+    );
+    db.run(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_measurements_user_date ON measurements(user_id, date)`
+    );
+    db.run(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_user_date ON photos(user_id, date)`
+    );
   }
 
   safeRun(`CREATE TABLE IF NOT EXISTS exercises (

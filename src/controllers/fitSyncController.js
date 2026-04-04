@@ -3,24 +3,20 @@ const db = require('../config/db');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/** ms timestamp → "HH:MM" local-time string (server TZ doesn't matter –
- *  we just store the clock face the user saw) */
 const msToTime = (ms) => {
   const d = new Date(ms);
   return d.toTimeString().slice(0, 5); // "HH:MM"
 };
 
-/** ms timestamp → "YYYY-MM-DD" for the *wake* date (the date the session ended) */
 const msToDate = (ms) => new Date(ms).toISOString().slice(0, 10);
 
-/**
- * Google Fit sleep stages:
- *   1 = awake (during sleep)   2 = sleep (light)
- *   3 = out-of-bed             4 = light sleep
- *   5 = deep sleep             6 = REM
- */
-const DEEP_STAGE = 5;
-const REM_STAGE = 6;
+// Google Fit sleep stages
+const STAGE_AWAKE = 1;
+const STAGE_SLEEP_LIGHT_1 = 2;
+const STAGE_OUT_OF_BED = 3;
+const STAGE_SLEEP_LIGHT_2 = 4;
+const STAGE_DEEP = 5;
+const STAGE_REM = 6;
 
 // ─── main sync ──────────────────────────────────────────────────────────────
 
@@ -31,23 +27,23 @@ exports.syncGoogleFitSleep = async (req, res) => {
 
   const tokens = req.session.tokens;
   if (!tokens) {
-    return res.status(401).json({ error: 'No Google tokens in session. Please log in again.' });
+    return res
+      .status(401)
+      .json({ error: 'No Google tokens in session. Please log in again.' });
   }
 
-  // How far back to sync – default 30 days, caller can pass ?days=N (max 90)
   const days = Math.min(parseInt(req.query.days || '30', 10), 90);
-  const endMs   = Date.now();
+  const endMs = Date.now();
   const startMs = endMs - days * 24 * 60 * 60 * 1000;
 
-  // Build an OAuth2 client using the stored session tokens
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+    process.env.GOOGLE_REDIRECT_URI ||
+      'http://localhost:5000/api/auth/google/callback'
   );
   oauth2Client.setCredentials(tokens);
 
-  // Persist refreshed tokens back into the session automatically
   oauth2Client.on('tokens', (newTokens) => {
     req.session.tokens = { ...tokens, ...newTokens };
   });
@@ -55,12 +51,12 @@ exports.syncGoogleFitSleep = async (req, res) => {
   const fitness = google.fitness({ version: 'v1', auth: oauth2Client });
 
   try {
-    // ── 1. Fetch sleep SESSIONS (gives us bedtime + wake time) ──────────────
+    // ── 1. Fetch sleep SESSIONS ─────────────────────────────────────────────
     const sessionsResp = await fitness.users.sessions.list({
       userId: 'me',
       startTime: new Date(startMs).toISOString(),
-      endTime:   new Date(endMs).toISOString(),
-      activityType: 72, // 72 = sleep
+      endTime: new Date(endMs).toISOString(),
+      activityType: 72, // sleep
     });
 
     const sessions = (sessionsResp.data.session || []).filter(
@@ -68,92 +64,111 @@ exports.syncGoogleFitSleep = async (req, res) => {
     );
 
     if (sessions.length === 0) {
-      return res.json({ synced: 0, message: 'No sleep sessions found in Google Fit for this period.' });
-    }
-
-    // ── 2. Fetch sleep STAGE data (deep / REM minutes) ──────────────────────
-    const datasetId = `${startMs * 1_000_000}-${endMs * 1_000_000}`; // nanoseconds
-    let stagePoints = [];
-
-    try {
-      const stagesResp = await fitness.users.dataSources.datasets.get({
-        userId: 'me',
-        dataSourceId:
-          'derived:com.google.sleep.segment:com.google.android.gms:merged',
-        datasetId,
+      return res.json({
+        synced: 0,
+        message: 'No sleep sessions found in Google Fit.',
       });
-      stagePoints = stagesResp.data.point || [];
-    } catch {
-      // Sleep stage data is optional – not all devices/apps write it
-      console.warn('[FitSync] Sleep stage data unavailable, will sync without deep/REM.');
     }
 
-    // ── 3. Fetch resting heart rate data ────────────────────────────────────
-    let rhrPoints = [];
-    try {
-      const rhrResp = await fitness.users.dataSources.datasets.get({
-        userId: 'me',
-        dataSourceId:
-          'derived:com.google.heart_rate.bpm:com.google.android.gms:resting_heart_rate<-merge_heart_rate_bpm',
-        datasetId,
-      });
-      rhrPoints = rhrResp.data.point || [];
-    } catch {
-      // RHR data is optional
-      console.warn('[FitSync] RHR data unavailable, will sync without RHR.');
-    }
+    // ── 2. Fetch Detailed Data Streams ──────────────────────────────────────
+    const datasetId = `${startMs * 1_000_000}-${endMs * 1_000_000}`;
 
-    // ── 4. Map each session → sleep record ──────────────────────────────────
+    // Helper to fetch dataset
+    const fetchDataset = async (dataSourceId) => {
+      try {
+        const resp = await fitness.users.dataSources.datasets.get({
+          userId: 'me',
+          dataSourceId,
+          datasetId,
+        });
+        return resp.data.point || [];
+      } catch (err) {
+        console.warn(`[FitSync] Data stream ${dataSourceId} unavailable.`);
+        return [];
+      }
+    };
+
+    const [stagePoints, rhrPoints] = await Promise.all([
+      fetchDataset(
+        'derived:com.google.sleep.segment:com.google.android.gms:merged'
+      ),
+      fetchDataset(
+        'derived:com.google.heart_rate.bpm:com.google.android.gms:resting_heart_rate<-merge_heart_rate_bpm'
+      ),
+    ]);
+
+    // ── 3. Map Sessions to Records ──────────────────────────────────────────
     const records = sessions.map((session) => {
       const sessionStartMs = parseInt(session.startTimeMillis);
-      const sessionEndMs   = parseInt(session.endTimeMillis);
+      const sessionEndMs = parseInt(session.endTimeMillis);
+      const wakeDate = msToDate(sessionEndMs);
 
-      const wakeDate = msToDate(sessionEndMs); // date we call this sleep entry
-      const bedtime  = msToTime(sessionStartMs);
-      const wakeTime = msToTime(sessionEndMs);
-
-      // Sum deep & REM minutes for data points that fall within this session
       let deepMs = 0;
-      let remMs  = 0;
+      let remMs = 0;
+      let lightMs = 0;
+      let awakeMs = 0;
 
       for (const pt of stagePoints) {
         const ptStart = parseInt(pt.startTimeNanos) / 1_000_000;
-        const ptEnd   = parseInt(pt.endTimeNanos)   / 1_000_000;
-        const stage   = pt.value?.[0]?.intVal;
+        const ptEnd = parseInt(pt.endTimeNanos) / 1_000_000;
+        const stage = pt.value?.[0]?.intVal;
 
         if (ptStart >= sessionStartMs && ptEnd <= sessionEndMs) {
-          if (stage === DEEP_STAGE) deepMs += ptEnd - ptStart;
-          if (stage === REM_STAGE)  remMs  += ptEnd - ptStart;
+          if (stage === STAGE_DEEP) deepMs += ptEnd - ptStart;
+          else if (stage === STAGE_REM) remMs += ptEnd - ptStart;
+          else if (
+            stage === STAGE_SLEEP_LIGHT_1 ||
+            stage === STAGE_SLEEP_LIGHT_2
+          )
+            lightMs += ptEnd - ptStart;
+          else if (stage === STAGE_AWAKE || stage === STAGE_OUT_OF_BED)
+            awakeMs += ptEnd - ptStart;
         }
       }
 
-      const deepMinutes = deepMs > 0 ? Math.round(deepMs / 60_000) : null;
-      const remMinutes  = remMs  > 0 ? Math.round(remMs  / 60_000) : null;
+      // Find nearest RHR
+      const rhrPt = rhrPoints.find((pt) => {
+        const ptMs = parseInt(pt.startTimeNanos) / 1_000_000;
+        return msToDate(ptMs) === wakeDate;
+      });
+      const rhr = rhrPt
+        ? Math.round(rhrPt.value?.[0]?.fpVal ?? rhrPt.value?.[0]?.intVal ?? 0)
+        : null;
 
-      // Nearest RHR reading on the same calendar date
-      let rhr = null;
-      for (const pt of rhrPoints) {
-        const ptDate = msToDate(parseInt(pt.startTimeNanos) / 1_000_000);
-        if (ptDate === wakeDate) {
-          rhr = Math.round(pt.value?.[0]?.fpVal ?? 0) || null;
-          break;
-        }
-      }
+      const bedtime = msToTime(sessionStartMs);
+      const wakeTime = msToTime(sessionEndMs);
 
-      return { date: wakeDate, bedtime, wake_time: wakeTime, rhr, deepMinutes, remMinutes };
+      const deepMinutes = Math.round(deepMs / 60000) || null;
+      const remMinutes = Math.round(remMs / 60000) || null;
+      const lightMinutes = Math.round(lightMs / 60000) || null;
+      const awakeMinutes = Math.round(awakeMs / 60000) || null;
+
+      return {
+        date: wakeDate,
+        bedtime,
+        wake_time: wakeTime,
+        rhr,
+        deep_sleep_minutes: deepMinutes,
+        rem_sleep_minutes: remMinutes,
+        light_minutes: lightMinutes,
+        awake_minutes: awakeMinutes,
+      };
     });
 
-    // ── 5. Upsert into DB ────────────────────────────────────────────────────
+    // ── 4. Upsert into DB ───────────────────────────────────────────────────
     const upsertSql = `
       INSERT INTO sleep
-        (user_id, date, bedtime, wake_time, rhr, deep_sleep_minutes, rem_sleep_minutes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+        (user_id, date, bedtime, wake_time, rhr, 
+         deep_sleep_minutes, rem_sleep_minutes, light_minutes, awake_minutes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, date) DO UPDATE SET
         bedtime             = COALESCE(excluded.bedtime,             sleep.bedtime),
         wake_time           = COALESCE(excluded.wake_time,           sleep.wake_time),
         rhr                 = COALESCE(excluded.rhr,                 sleep.rhr),
         deep_sleep_minutes  = COALESCE(excluded.deep_sleep_minutes,  sleep.deep_sleep_minutes),
-        rem_sleep_minutes   = COALESCE(excluded.rem_sleep_minutes,   sleep.rem_sleep_minutes)
+        rem_sleep_minutes   = COALESCE(excluded.rem_sleep_minutes,   sleep.rem_sleep_minutes),
+        light_minutes       = COALESCE(excluded.light_minutes,       sleep.light_minutes),
+        awake_minutes       = COALESCE(excluded.awake_minutes,       sleep.awake_minutes)
     `;
 
     let synced = 0;
@@ -164,25 +179,20 @@ exports.syncGoogleFitSleep = async (req, res) => {
         r.bedtime,
         r.wake_time,
         r.rhr,
-        r.deepMinutes,
-        r.remMinutes,
+        r.deep_sleep_minutes,
+        r.rem_sleep_minutes,
+        r.light_minutes,
+        r.awake_minutes,
       ]);
       synced++;
     }
 
     return res.json({
       synced,
-      message: `Successfully synced ${synced} sleep session${synced !== 1 ? 's' : ''} from Google Fit.`,
+      message: `Successfully synced ${synced} sessions.`,
     });
-
   } catch (err) {
-    console.error('[FitSync] Error syncing Google Fit sleep:', err.message);
-
-    // Token expired / revoked → tell frontend to re-authenticate
-    if (err.code === 401 || err.message?.includes('invalid_grant')) {
-      return res.status(401).json({ error: 'Google token expired. Please log in again.' });
-    }
-
-    return res.status(500).json({ error: 'Failed to sync from Google Fit.', detail: err.message });
+    console.error('[FitSync] Error:', err.message);
+    return res.status(500).json({ error: 'Sync failed', detail: err.message });
   }
 };
