@@ -241,18 +241,17 @@ db.serialize(() => {
   addCol('sleep', 'awake_minutes', 'INTEGER');
   addCol('sleep', 'light_minutes', 'INTEGER');
 
-  if (!isProduction) {
-    db.run(`DROP INDEX IF EXISTS idx_sleep_date`);
-    db.run(
-      `CREATE UNIQUE INDEX IF NOT EXISTS idx_sleep_user_date ON sleep(user_id, date)`
-    );
-    db.run(
-      `CREATE UNIQUE INDEX IF NOT EXISTS idx_measurements_user_date ON measurements(user_id, date)`
-    );
-    db.run(
-      `CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_user_date ON photos(user_id, date)`
-    );
-  }
+  // Ensure unique indexes exist for ON CONFLICT to work in PostgreSQL
+  safeRun(`DROP INDEX IF EXISTS idx_sleep_date`);
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_sleep_user_date ON sleep(user_id, date)`
+  );
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_measurements_user_date ON measurements(user_id, date)`
+  );
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_user_date ON photos(user_id, date)`
+  );
 
   safeRun(`CREATE TABLE IF NOT EXISTS exercises (
       id TEXT PRIMARY KEY,
