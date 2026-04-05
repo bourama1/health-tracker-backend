@@ -180,11 +180,50 @@ describe('Health Tracker API', () => {
     test('POST /api/sleep should create a new sleep entry', async () => {
       const newSleep = {
         date: '2023-10-27',
-        sleep_score: 85,
+        bedtime: '22:30',
+        wake_time: '06:30',
       };
 
       const response = await request(app).post('/api/sleep').send(newSleep);
       expect(response.status).toBe(200);
+      expect(response.body.message).toBe('Sleep data saved successfully');
+    });
+
+    test('GET /api/sleep should return entries in descending order', async () => {
+      await new Promise((resolve) => {
+        db.run(
+          "INSERT INTO sleep (user_id, date, bedtime) VALUES ('test-user-id', '2023-10-01', '22:00')",
+          resolve
+        );
+      });
+      await new Promise((resolve) => {
+        db.run(
+          "INSERT INTO sleep (user_id, date, bedtime) VALUES ('test-user-id', '2023-10-15', '22:30')",
+          resolve
+        );
+      });
+
+      const response = await request(app).get('/api/sleep');
+      expect(response.status).toBe(200);
+      expect(response.body.length).toBe(2);
+      expect(response.body[0].date).toBe('2023-10-15');
+      expect(response.body[1].date).toBe('2023-10-01');
+    });
+
+    test('DELETE /api/sleep/:id should delete an entry', async () => {
+      await new Promise((resolve) => {
+        db.run(
+          "INSERT INTO sleep (id, user_id, date) VALUES (999, 'test-user-id', '2023-10-20')",
+          resolve
+        );
+      });
+
+      const response = await request(app).delete('/api/sleep/999');
+      expect(response.status).toBe(200);
+      expect(response.body.message).toBe('Sleep entry deleted successfully');
+
+      const getResponse = await request(app).get('/api/sleep');
+      expect(getResponse.body.find((e) => e.id === 999)).toBeUndefined();
     });
   });
 });
