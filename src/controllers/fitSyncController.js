@@ -3,12 +3,42 @@ const db = require('../config/db');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const msToTime = (ms) => {
-  const d = new Date(ms);
-  return d.toTimeString().slice(0, 5); // "HH:MM"
+const msToTime = (ms, tz = 'UTC') => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(ms));
+    const hour = parts.find((p) => p.type === 'hour').value;
+    const minute = parts.find((p) => p.type === 'minute').value;
+    return `${hour}:${minute}`;
+  } catch (err) {
+    console.error(`[FitSync] Time formatting error for tz ${tz}:`, err.message);
+    // Fallback to UTC
+    const d = new Date(ms);
+    return d.toISOString().slice(11, 16);
+  }
 };
 
-const msToDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+const msToDate = (ms, tz = 'UTC') => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(ms));
+    const year = parts.find((p) => p.type === 'year').value;
+    const month = parts.find((p) => p.type === 'month').value;
+    const day = parts.find((p) => p.type === 'day').value;
+    return `${year}-${month}-${day}`;
+  } catch (err) {
+    console.error(`[FitSync] Date formatting error for tz ${tz}:`, err.message);
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+};
 
 // Google Fit sleep stages
 const STAGE_AWAKE = 1;
@@ -33,8 +63,11 @@ exports.syncGoogleFitSleep = async (req, res) => {
   }
 
   const days = Math.min(parseInt(req.query.days || '30', 10), 90);
+  const tz = req.query.tz || 'UTC';
   const endMs = Date.now();
   const startMs = endMs - days * 24 * 60 * 60 * 1000;
+
+  console.log(`[FitSync] Starting sync for user ${req.session.user.id}, days: ${days}, tz: ${tz}`);
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -101,7 +134,7 @@ exports.syncGoogleFitSleep = async (req, res) => {
     const records = sessions.map((session) => {
       const sessionStartMs = parseInt(session.startTimeMillis);
       const sessionEndMs = parseInt(session.endTimeMillis);
-      const wakeDate = msToDate(sessionEndMs);
+      const wakeDate = msToDate(sessionEndMs, tz);
 
       let deepMs = 0;
       let remMs = 0;
@@ -129,14 +162,14 @@ exports.syncGoogleFitSleep = async (req, res) => {
       // Find nearest RHR
       const rhrPt = rhrPoints.find((pt) => {
         const ptMs = parseInt(pt.startTimeNanos) / 1_000_000;
-        return msToDate(ptMs) === wakeDate;
+        return msToDate(ptMs, tz) === wakeDate;
       });
       const rhr = rhrPt
         ? Math.round(rhrPt.value?.[0]?.fpVal ?? rhrPt.value?.[0]?.intVal ?? 0)
         : null;
 
-      const bedtime = msToTime(sessionStartMs);
-      const wakeTime = msToTime(sessionEndMs);
+      const bedtime = msToTime(sessionStartMs, tz);
+      const wakeTime = msToTime(sessionEndMs, tz);
 
       const deepMinutes = Math.round(deepMs / 60000) || null;
       const remMinutes = Math.round(remMs / 60000) || null;

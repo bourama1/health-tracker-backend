@@ -54,22 +54,40 @@ exports.createMeasurement = (req, res) => {
       .json({ error: 'At least one measurement is required' });
   }
 
-  const query = `INSERT INTO measurements (user_id, date, bodyweight, body_fat, chest, waist, biceps, forearm, calf, thigh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const query = `
+    INSERT INTO measurements (user_id, date, bodyweight, body_fat, chest, waist, biceps, forearm, calf, thigh)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, date) DO UPDATE SET
+      bodyweight = COALESCE(excluded.bodyweight, measurements.bodyweight),
+      body_fat   = COALESCE(excluded.body_fat,   measurements.body_fat),
+      chest      = COALESCE(excluded.chest,      measurements.chest),
+      waist      = COALESCE(excluded.waist,      measurements.waist),
+      biceps     = COALESCE(excluded.biceps,     measurements.biceps),
+      forearm    = COALESCE(excluded.forearm,    measurements.forearm),
+      calf       = COALESCE(excluded.calf,       measurements.calf),
+      thigh      = COALESCE(excluded.thigh,      measurements.thigh)
+  `;
   const params = [
     req.session.user.id,
     date,
-    bodyweight,
-    body_fat,
-    chest,
-    waist,
-    biceps,
-    forearm,
-    calf,
-    thigh,
+    bodyweight || null,
+    body_fat || null,
+    chest || null,
+    waist || null,
+    biceps || null,
+    forearm || null,
+    calf || null,
+    thigh || null,
   ];
 
   db.run(query, params, function (err) {
-    if (err) return res.status(400).json({ error: err.message });
-    res.json({ id: this.lastID, message: 'Measurement saved successfully' });
+    if (err) {
+      console.error('[Measurement] Error saving:', err.message);
+      return res.status(400).json({ error: err.message });
+    }
+    res.json({
+      id: this.lastID || null,
+      message: 'Measurement saved successfully',
+    });
   });
 };
