@@ -111,25 +111,47 @@ describe('Workout API', () => {
     test('GET /api/workouts/progress/:exercise_id should return progress data', async () => {
       const newPlan = {
         name: 'Progress Test Plan',
-        days: [{ name: 'Day 1', exercises: [{ exercise_id: 'test_bench_press' }] }],
+        days: [
+          { name: 'Day 1', exercises: [{ exercise_id: 'test_bench_press' }] },
+        ],
       };
       await request(app).post('/api/workouts/plans').send(newPlan);
       const plans = await request(app).get('/api/workouts/plans');
       const dayId = plans.body[0].days[0].id;
 
-      await request(app).post('/api/workouts/sessions').send({
-        day_id: dayId,
-        date: '2023-10-01',
-        logs: [{ exercise_id: 'test_bench_press', set_number: 1, weight: 60, reps: 10 }]
-      });
+      await request(app)
+        .post('/api/workouts/sessions')
+        .send({
+          day_id: dayId,
+          date: '2023-10-01',
+          logs: [
+            {
+              exercise_id: 'test_bench_press',
+              set_number: 1,
+              weight: 60,
+              reps: 10,
+            },
+          ],
+        });
 
-      await request(app).post('/api/workouts/sessions').send({
-        day_id: dayId,
-        date: '2023-10-15',
-        logs: [{ exercise_id: 'test_bench_press', set_number: 1, weight: 65, reps: 8 }]
-      });
+      await request(app)
+        .post('/api/workouts/sessions')
+        .send({
+          day_id: dayId,
+          date: '2023-10-15',
+          logs: [
+            {
+              exercise_id: 'test_bench_press',
+              set_number: 1,
+              weight: 65,
+              reps: 8,
+            },
+          ],
+        });
 
-      const response = await request(app).get('/api/workouts/progress/test_bench_press');
+      const response = await request(app).get(
+        '/api/workouts/progress/test_bench_press'
+      );
       expect(response.status).toBe(200);
       expect(response.body.length).toBe(2);
       expect(response.body[0].max_weight).toBe(60);

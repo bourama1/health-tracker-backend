@@ -67,7 +67,9 @@ exports.syncGoogleFitSleep = async (req, res) => {
   const endMs = Date.now();
   const startMs = endMs - days * 24 * 60 * 60 * 1000;
 
-  console.log(`[FitSync] Starting sync for user ${req.session.user.id}, days: ${days}, tz: ${tz}`);
+  console.log(
+    `[FitSync] Starting sync for user ${req.session.user.id}, days: ${days}, tz: ${tz}`
+  );
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,

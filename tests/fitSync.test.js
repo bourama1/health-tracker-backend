@@ -12,7 +12,7 @@ jest.mock('googleapis', () => {
             session: [
               {
                 startTimeMillis: '1698357600000', // 2023-10-26 22:00 UTC
-                endTimeMillis: '1698386400000',   // 2023-10-27 06:00 UTC
+                endTimeMillis: '1698386400000', // 2023-10-27 06:00 UTC
                 activityType: 72,
               },
             ],
@@ -91,9 +91,13 @@ describe('Google Fit Sync API', () => {
     expect(response.body.synced).toBe(1);
 
     const sleepData = await new Promise((resolve) => {
-      db.all('SELECT * FROM sleep WHERE user_id = ?', ['test-user-id'], (err, rows) => {
-        resolve(rows);
-      });
+      db.all(
+        'SELECT * FROM sleep WHERE user_id = ?',
+        ['test-user-id'],
+        (err, rows) => {
+          resolve(rows);
+        }
+      );
     });
 
     expect(sleepData.length).toBe(1);

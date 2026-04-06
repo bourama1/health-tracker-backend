@@ -66,6 +66,8 @@ describe('Sleep Score Calculation', () => {
       wakeTime: '06:00',
       rhr: 80,
     };
-    expect(calculateSleepScore(badRhrSleep)).toBeLessThan(calculateSleepScore(goodSleep));
+    expect(calculateSleepScore(badRhrSleep)).toBeLessThan(
+      calculateSleepScore(goodSleep)
+    );
   });
 });

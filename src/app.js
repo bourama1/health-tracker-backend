@@ -62,7 +62,10 @@ app.use(
 if (process.env.NODE_ENV === 'test') {
   app.use((req, res, next) => {
     req.session.user = { id: 'test-user-id', email: 'test@example.com' };
-    req.session.tokens = { access_token: 'mock-access-token', refresh_token: 'mock-refresh-token' };
+    req.session.tokens = {
+      access_token: 'mock-access-token',
+      refresh_token: 'mock-refresh-token',
+    };
     next();
   });
 }
