@@ -11,6 +11,7 @@ router.get('/exercises', c.getAllExercises);
 // Plans
 router.get('/plans', c.getPlans);
 router.post('/plans', c.createPlan);
+router.put('/plans/:id', c.updatePlan);
 router.delete('/plans/:id', c.deletePlan);
 
 // Sessions
@@ -21,5 +22,6 @@ router.get('/sessions/last-for-day/:day_id', c.getLastSessionForDay);
 // Analytics
 router.get('/progress/:exercise_id', c.getExerciseProgress);
 router.get('/stats', c.getStats);
+router.get('/last-trained-muscles', c.getLastTrainedMuscles);
 
 module.exports = router;

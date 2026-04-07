@@ -190,7 +190,7 @@ exports.getPlans = async (req, res) => {
       `
       SELECT
         wp.id as plan_id, wp.name as plan_name, wp.description,
-        wd.id as day_id, wd.name as day_name, wd.day_order,
+        wd.id as day_id, wd.name as day_name, wd.day_order, wd.scheduled_days,
         wde.id as wde_id, wde.exercise_id, wde.default_sets,
         wde.default_reps, wde.default_weight, wde.exercise_order,
         wde.exercise_type, wde.target_rpe, wde.reps_min, wde.reps_max,
@@ -222,6 +222,9 @@ exports.getPlans = async (req, res) => {
             id: row.day_id,
             name: row.day_name,
             day_order: row.day_order,
+            scheduled_days: row.scheduled_days
+              ? row.scheduled_days.split(',')
+              : [],
             exercises: [],
           };
           plansMap[row.plan_id].days.push(day);
@@ -269,9 +272,12 @@ exports.createPlan = async (req, res) => {
     if (days && days.length > 0) {
       for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
         const day = days[dayIndex];
+        const scheduledStr = Array.isArray(day.scheduled_days)
+          ? day.scheduled_days.join(',')
+          : '';
         const { lastID: dayId } = await dbRun(
-          `INSERT INTO workout_days (plan_id, name, day_order) VALUES (?, ?, ?)`,
-          [planId, day.name, dayIndex]
+          `INSERT INTO workout_days (plan_id, name, day_order, scheduled_days) VALUES (?, ?, ?, ?)`,
+          [planId, day.name, dayIndex, scheduledStr]
         );
         if (day.exercises && day.exercises.length > 0) {
           for (let exIdx = 0; exIdx < day.exercises.length; exIdx++) {
@@ -308,6 +314,79 @@ exports.createPlan = async (req, res) => {
   }
 };
 
+exports.updatePlan = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  const { id } = req.params;
+  const { name, description, days } = req.body;
+
+  try {
+    await dbRun('BEGIN TRANSACTION');
+
+    // Verify ownership
+    const plan = await dbAll(
+      'SELECT id FROM workout_plans WHERE id = ? AND user_id = ?',
+      [id, req.session.user.id]
+    );
+    if (!plan.length) {
+      throw new Error('Plan not found or not authorized');
+    }
+
+    // Update plan info
+    await dbRun(
+      'UPDATE workout_plans SET name = ?, description = ? WHERE id = ?',
+      [name, description, id]
+    );
+
+    // Simplest way to update days/exercises: delete and re-insert
+    await dbRun('DELETE FROM workout_days WHERE plan_id = ?', [id]);
+
+    if (days && days.length > 0) {
+      for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
+        const day = days[dayIndex];
+        const scheduledStr = Array.isArray(day.scheduled_days)
+          ? day.scheduled_days.join(',')
+          : '';
+        const { lastID: dayId } = await dbRun(
+          `INSERT INTO workout_days (plan_id, name, day_order, scheduled_days) VALUES (?, ?, ?, ?)`,
+          [id, day.name, dayIndex, scheduledStr]
+        );
+        if (day.exercises && day.exercises.length > 0) {
+          for (let exIdx = 0; exIdx < day.exercises.length; exIdx++) {
+            const ex = day.exercises[exIdx];
+            await dbRun(
+              `INSERT INTO workout_day_exercises
+                (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                dayId,
+                ex.exercise_id,
+                ex.sets,
+                ex.reps,
+                ex.weight || 0,
+                exIdx,
+                ex.exercise_type || 'weighted',
+                ex.target_rpe || null,
+                ex.reps_min || null,
+                ex.reps_max || null,
+              ]
+            );
+          }
+        }
+      }
+    }
+
+    await dbRun('COMMIT');
+    res.json({ message: 'Plan updated successfully' });
+  } catch (err) {
+    try {
+      await dbRun('ROLLBACK');
+    } catch (_) {}
+    res.status(400).json({ error: err.message });
+  }
+};
+
 exports.deletePlan = async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -318,6 +397,45 @@ exports.deletePlan = async (req, res) => {
       req.session.user.id,
     ]);
     res.json({ message: 'Plan deleted' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+exports.getLastTrainedMuscles = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  try {
+    const rows = await dbAll(
+      `
+      SELECT e.primary_muscles, e.secondary_muscles, ws.date
+      FROM workout_sessions ws
+      JOIN workout_session_logs wsl ON ws.id = wsl.session_id
+      JOIN exercises e ON wsl.exercise_id = e.id
+      WHERE ws.user_id = ?
+      ORDER BY ws.date DESC
+    `,
+      [req.session.user.id]
+    );
+
+    const muscleLastDate = {};
+    rows.forEach((row) => {
+      const muscles = [
+        ...(row.primary_muscles || '').split(','),
+        ...(row.secondary_muscles || '').split(','),
+      ]
+        .map((m) => m.trim().toLowerCase())
+        .filter(Boolean);
+
+      muscles.forEach((m) => {
+        if (!muscleLastDate[m] || row.date > muscleLastDate[m]) {
+          muscleLastDate[m] = row.date;
+        }
+      });
+    });
+
+    res.json(muscleLastDate);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

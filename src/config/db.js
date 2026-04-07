@@ -285,8 +285,11 @@ db.serialize(() => {
       plan_id INTEGER,
       name TEXT,
       day_order INTEGER,
+      scheduled_days TEXT,
       FOREIGN KEY (plan_id) REFERENCES workout_plans(id) ON DELETE CASCADE
     )`);
+
+  addCol('workout_days', 'scheduled_days', 'TEXT');
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_day_exercises (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
