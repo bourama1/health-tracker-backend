@@ -13,7 +13,7 @@ Currently, only the latest version of this project is supported for security upd
 We take the security of this project seriously. If you believe you have found a security vulnerability, please report it to us by following these steps:
 
 1.  **Do not** open a public issue.
-2.  Send an email to [INSERT EMAIL ADDRESS] with a detailed description of the vulnerability.
+2.  Send an email to security@healthtracker.example.com with a detailed description of the vulnerability.
 3.  Include any relevant information, such as:
     - Steps to reproduce the vulnerability.
     - Potential impact.

@@ -28,6 +28,12 @@ First off, thank you for considering contributing to the Health Tracker Backend!
 - Before submitting your PR, make sure all tests pass by running `npm test`.
 - Link your PR to any related issues.
 
+### 🧪 Testing Guidelines
+
+- The project uses Jest for testing.
+- Tests are configured to use an isolated in-memory SQLite database by default (`DATABASE_NAME=:memory:`).
+- **Important:** Always run tests with the `--runInBand` flag to ensure they execute sequentially and prevent database locks or race conditions. This is already included in the `npm test` script.
+
 ## 🛠 Development Environment Setup
 
 Please refer to the `README.md` for instructions on how to set up the project locally.
