@@ -462,7 +462,7 @@ exports.saveSession = async (req, res) => {
       for (const log of logs) {
         // Scope PR check to user
         const prCheck = await dbAll(
-          `SELECT MAX(wsl.weight) as max_weight 
+          `SELECT MAX(wsl.weight) as max_weight
            FROM workout_session_logs wsl
            JOIN workout_sessions ws ON wsl.session_id = ws.id
            WHERE wsl.exercise_id = ? AND ws.user_id = ?`,
@@ -515,7 +515,7 @@ exports.getSessionHistory = async (req, res) => {
         wsl.id as log_id, wsl.exercise_id, wsl.set_number,
         wsl.weight, wsl.reps, wsl.rpe, wsl.notes as log_notes,
         wsl.duration_seconds, wsl.is_pr,
-        e.name as exercise_name
+        e.name as exercise_name, e.primary_muscles, e.secondary_muscles
       FROM workout_sessions ws
       JOIN workout_days wd ON ws.day_id = wd.id
       JOIN workout_plans wp ON wd.plan_id = wp.id
@@ -544,6 +544,8 @@ exports.getSessionHistory = async (req, res) => {
           id: row.log_id,
           exercise_id: row.exercise_id,
           exercise_name: row.exercise_name,
+          primary_muscles: row.primary_muscles,
+          secondary_muscles: row.secondary_muscles,
           set_number: row.set_number,
           weight: row.weight,
           reps: row.reps,
@@ -695,14 +697,14 @@ exports.getStats = async (req, res) => {
       [req.session.user.id]
     );
     const [{ count: totalSets }] = await dbAll(
-      `SELECT COUNT(*) as count 
+      `SELECT COUNT(*) as count
        FROM workout_session_logs wsl
        JOIN workout_sessions ws ON wsl.session_id = ws.id
        WHERE ws.user_id = ?`,
       [req.session.user.id]
     );
     const [{ count: totalPRs }] = await dbAll(
-      `SELECT COUNT(*) as count 
+      `SELECT COUNT(*) as count
        FROM workout_session_logs wsl
        JOIN workout_sessions ws ON wsl.session_id = ws.id
        WHERE ws.user_id = ? AND wsl.is_pr = 1`,
