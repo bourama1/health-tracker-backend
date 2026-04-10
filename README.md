@@ -6,12 +6,14 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
 
 - **Authentication:** Google OAuth2 integration for secure user login.
 - **Measurements:** Track bodyweight, body fat, and various body part measurements (chest, waist, biceps, etc.).
-- **Progress Photos:** Upload and manage front, side, and back view photos. Supports local storage and Google Drive integration.
-- **Sleep Tracking:** Log bedtime, wake time, resting heart rate (RHR), and sleep quality metrics (sleep score, deep/REM sleep).
+- **Progress Photos:** Upload and manage front, side, and back view photos. Supports local storage and Cloudinary integration.
+- **Sleep Tracking:** Log bedtime, wake time, resting heart rate (RHR), and sleep quality metrics. Includes automated sleep score calculation (0-100) based on duration, efficiency, RHR, HRV, and sleep stages.
+- **Google Fit Integration:** Synchronize sleep data directly from Google Fit.
 - **Workout Management:**
-  - Comprehensive exercise database (auto-seeded).
+  - Comprehensive exercise database (automatically seeded on startup and every 7 days).
   - Create and manage personalized workout plans and days.
   - Log workout sessions with detailed set-by-set tracking (weight, reps, RPE).
+  - **Analytics:** Track exercise progress with detailed history and view general training statistics, including last trained muscles.
 - **Database:** Support for both SQLite (local development) and PostgreSQL (production).
 
 ## 🛠 Tech Stack
@@ -20,6 +22,7 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
 - **Framework:** Express.js
 - **Database:** SQLite3, PostgreSQL (via `pg`)
 - **Authentication:** Google OAuth2 (via `googleapis`)
+- **Cloud Storage:** Cloudinary (via `cloudinary` and `multer-storage-cloudinary`)
 - **Testing:** Jest, Supertest
 - **Environment Management:** `dotenv`, `cross-env`
 
@@ -56,6 +59,9 @@ A robust Node.js backend for a comprehensive health and fitness tracking applica
     - `GOOGLE_CLIENT_SECRET`: Your Google OAuth2 Client Secret.
     - `SESSION_SECRET`: A secret string for session encryption.
     - `FRONTEND_URL`: The URL of your frontend application (e.g., `http://localhost:3000`).
+    - `CLOUDINARY_CLOUD_NAME`: Your Cloudinary cloud name.
+    - `CLOUDINARY_API_KEY`: Your Cloudinary API key.
+    - `CLOUDINARY_API_SECRET`: Your Cloudinary API secret.
 
 4.  **Seed the database:**
     The application automatically seeds exercises on first run, but you can also run it manually:
