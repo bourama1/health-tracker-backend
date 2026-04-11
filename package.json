@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "concurrently \"nodemon server.js\" \"ngrok http --url=game-inspired-gar.ngrok-free.app 5000\"",
     "seed": "node src/scripts/seedExercises.js",
     "test": "cross-env NODE_ENV=test DATABASE_NAME=:memory: jest --runInBand"
   },
@@ -26,8 +27,10 @@
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "jest": "^30.3.0",
+    "nodemon": "^3.1.14",
     "supertest": "^7.2.2"
   }
 }
