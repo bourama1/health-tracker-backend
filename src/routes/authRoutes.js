@@ -60,20 +60,24 @@ router.get('/google/callback', async (req, res) => {
       const mobileRedirect = stateData.redirect || 'healthtrackermobile://auth';
       const token = tokens.access_token;
       console.log('[Auth] Redirecting back to mobile with token');
-      return res.redirect(`${mobileRedirect}${mobileRedirect.includes('?') ? '&' : '?'}status=success&token=${token}`);
+      return res.redirect(
+        `${mobileRedirect}${mobileRedirect.includes('?') ? '&' : '?'}status=success&token=${token}`
+      );
     }
 
-    res.redirect(`${frontendUrl}/?auth=success`);
+    const token = tokens.access_token;
+    res.redirect(`${frontendUrl}/?auth=success&token=${token}`);
   } catch (error) {
     console.error('Error during Google Auth callback:', error);
     if (stateData.platform === 'mobile') {
       const mobileRedirect = stateData.redirect || 'healthtrackermobile://auth';
-      return res.redirect(`${mobileRedirect}${mobileRedirect.includes('?') ? '&' : '?'}status=failure`);
+      return res.redirect(
+        `${mobileRedirect}${mobileRedirect.includes('?') ? '&' : '?'}status=failure`
+      );
     }
     res.redirect(`${frontendUrl}/?auth=failure`);
   }
 });
-
 
 // Check auth status
 router.post('/google/verify', async (req, res) => {
