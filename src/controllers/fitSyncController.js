@@ -133,60 +133,103 @@ exports.syncGoogleFitSleep = async (req, res) => {
     ]);
 
     // ── 3. Map Sessions to Records ──────────────────────────────────────────
-    const records = sessions.map((session) => {
+    const recordsMap = {};
+
+    for (const session of sessions) {
       const sessionStartMs = parseInt(session.startTimeMillis);
       const sessionEndMs = parseInt(session.endTimeMillis);
-      const wakeDate = msToDate(sessionEndMs, tz);
 
-      let deepMs = 0;
-      let remMs = 0;
-      let lightMs = 0;
-      let awakeMs = 0;
+      // Use "sleep day" logic: sessions starting before 12 PM (noon) are attributed to the previous calendar day.
+      // This ensures that sleep starting at 1 AM on Tuesday is recorded as Monday's sleep.
+      const sleepDate = msToDate(sessionStartMs - 12 * 60 * 60 * 1000, tz);
 
-      for (const pt of stagePoints) {
-        const ptStart = parseInt(pt.startTimeNanos) / 1_000_000;
-        const ptEnd = parseInt(pt.endTimeNanos) / 1_000_000;
-        const stage = pt.value?.[0]?.intVal;
+      if (!recordsMap[sleepDate]) {
+        recordsMap[sleepDate] = {
+          date: sleepDate,
+          bedtimeMs: sessionStartMs,
+          wakeMs: sessionEndMs,
+          deepMs: 0,
+          remMs: 0,
+          lightMs: 0,
+          awakeMs: 0,
+          sessions: [],
+        };
+      } else {
+        // Merge with existing record for this sleep day (e.g. if sleep was interrupted)
+        recordsMap[sleepDate].bedtimeMs = Math.min(
+          recordsMap[sleepDate].bedtimeMs,
+          sessionStartMs
+        );
+        recordsMap[sleepDate].wakeMs = Math.max(
+          recordsMap[sleepDate].wakeMs,
+          sessionEndMs
+        );
+      }
+      recordsMap[sleepDate].sessions.push({
+        start: sessionStartMs,
+        end: sessionEndMs,
+      });
+    }
 
-        if (ptStart >= sessionStartMs && ptEnd <= sessionEndMs) {
-          if (stage === STAGE_DEEP) deepMs += ptEnd - ptStart;
-          else if (stage === STAGE_REM) remMs += ptEnd - ptStart;
+    // Process stages and assign to the correct sleep day record
+    for (const pt of stagePoints) {
+      const ptStart = parseInt(pt.startTimeNanos) / 1_000_000;
+      const ptEnd = parseInt(pt.endTimeNanos) / 1_000_000;
+      const stage = pt.value?.[0]?.intVal;
+
+      for (const sleepDate in recordsMap) {
+        const record = recordsMap[sleepDate];
+        // Point belongs to this sleep day if it falls within any of its sessions
+        const isInSession = record.sessions.some(
+          (s) => ptStart >= s.start && ptEnd <= s.end
+        );
+
+        if (isInSession) {
+          if (stage === STAGE_DEEP) record.deepMs += ptEnd - ptStart;
+          else if (stage === STAGE_REM) record.remMs += ptEnd - ptStart;
           else if (
             stage === STAGE_SLEEP_LIGHT_1 ||
             stage === STAGE_SLEEP_LIGHT_2
           )
-            lightMs += ptEnd - ptStart;
+            record.lightMs += ptEnd - ptStart;
           else if (stage === STAGE_AWAKE || stage === STAGE_OUT_OF_BED)
-            awakeMs += ptEnd - ptStart;
+            record.awakeMs += ptEnd - ptStart;
+          break; // Point assigned, move to next point
+        }
+      }
+    }
+
+    const records = Object.values(recordsMap).map((r) => {
+      // Find nearest RHR point (closest to the LATEST wake time of this sleep day)
+      let closestRhrPt = null;
+      let minRhrDiff = 24 * 60 * 60 * 1000;
+
+      for (const pt of rhrPoints) {
+        const ptMs = parseInt(pt.startTimeNanos) / 1_000_000;
+        const diff = Math.abs(ptMs - r.wakeMs);
+        if (diff < minRhrDiff) {
+          minRhrDiff = diff;
+          closestRhrPt = pt;
         }
       }
 
-      // Find nearest RHR
-      const rhrPt = rhrPoints.find((pt) => {
-        const ptMs = parseInt(pt.startTimeNanos) / 1_000_000;
-        return msToDate(ptMs, tz) === wakeDate;
-      });
-      const rhr = rhrPt
-        ? Math.round(rhrPt.value?.[0]?.fpVal ?? rhrPt.value?.[0]?.intVal ?? 0)
+      const rhr = closestRhrPt
+        ? Math.round(
+            closestRhrPt.value?.[0]?.fpVal ??
+              closestRhrPt.value?.[0]?.intVal ??
+              0
+          )
         : null;
 
-      const bedtime = msToTime(sessionStartMs, tz);
-      const wakeTime = msToTime(sessionEndMs, tz);
-
-      const deepMinutes = Math.round(deepMs / 60000) || null;
-      const remMinutes = Math.round(remMs / 60000) || null;
-      const lightMinutes = Math.round(lightMs / 60000) || null;
-      const awakeMinutes = Math.round(awakeMs / 60000) || null;
-
       return {
-        date: wakeDate,
-        bedtime,
-        wake_time: wakeTime,
+        date: r.date,
+        bedtime: msToTime(r.bedtimeMs, tz),
+        wake_time: msToTime(r.wakeMs, tz),
         rhr,
-        deep_sleep_minutes: deepMinutes,
-        rem_sleep_minutes: remMinutes,
-        light_minutes: lightMinutes,
-        awake_minutes: awakeMinutes,
+        deep_sleep_minutes: Math.round(r.deepMs / 60000) || null,
+        rem_sleep_minutes: Math.round(r.remMs / 60000) || null,
+        light_minutes: Math.round(r.lightMs / 60000) || null,
+        awake_minutes: Math.round(r.awakeMs / 60000) || null,
       };
     });
 
@@ -228,6 +271,15 @@ exports.syncGoogleFitSleep = async (req, res) => {
     });
   } catch (err) {
     console.error('[FitSync] Error:', err.message);
+    if (
+      err.message.includes('invalid authentication credentials') ||
+      err.message.includes('invalid_grant') ||
+      err.status === 401
+    ) {
+      return res
+        .status(401)
+        .json({ error: 'Google session expired. Please log in again.' });
+    }
     return res.status(500).json({ error: 'Sync failed', detail: err.message });
   }
 };
