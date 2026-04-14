@@ -139,9 +139,10 @@ exports.syncGoogleFitSleep = async (req, res) => {
       const sessionStartMs = parseInt(session.startTimeMillis);
       const sessionEndMs = parseInt(session.endTimeMillis);
 
-      // Use "sleep day" logic: sessions starting before 12 PM (noon) are attributed to the previous calendar day.
-      // This ensures that sleep starting at 1 AM on Tuesday is recorded as Monday's sleep.
-      const sleepDate = msToDate(sessionStartMs - 12 * 60 * 60 * 1000, tz);
+      // Use WAKE date of sleep session as the record date.
+      // This ensures that when you wake up on Tuesday morning, the sleep is recorded as Tuesday's sleep,
+      // and the "Today" dashboard is not empty.
+      const sleepDate = msToDate(sessionEndMs, tz);
 
       if (!recordsMap[sleepDate]) {
         recordsMap[sleepDate] = {

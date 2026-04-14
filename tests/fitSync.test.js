@@ -101,7 +101,7 @@ describe('Google Fit Sync API', () => {
     });
 
     expect(sleepData.length).toBe(1);
-    expect(sleepData[0].date).toBe('2023-10-26');
+    expect(sleepData[0].date).toBe('2023-10-27');
     expect(sleepData[0].bedtime).toBe('22:00');
     expect(sleepData[0].wake_time).toBe('06:00');
     expect(sleepData[0].rhr).toBe(52);
