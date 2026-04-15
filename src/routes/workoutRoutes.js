@@ -13,6 +13,7 @@ router.get('/plans', c.getPlans);
 router.post('/plans', c.createPlan);
 router.put('/plans/:id', c.updatePlan);
 router.delete('/plans/:id', c.deletePlan);
+router.put('/days/:day_id/exercises', c.updateDayExercises);
 
 // Sessions
 router.get('/sessions', c.getSessionHistory);

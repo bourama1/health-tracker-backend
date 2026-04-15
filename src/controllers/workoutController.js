@@ -387,6 +387,64 @@ exports.updatePlan = async (req, res) => {
   }
 };
 
+exports.updateDayExercises = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  const { day_id } = req.params;
+  const { exercises } = req.body;
+
+  try {
+    await dbRun('BEGIN TRANSACTION');
+
+    // Verify ownership via plan
+    const day = await dbAll(
+      `SELECT wd.id FROM workout_days wd 
+       JOIN workout_plans wp ON wd.plan_id = wp.id 
+       WHERE wd.id = ? AND wp.user_id = ?`,
+      [day_id, req.session.user.id]
+    );
+    if (!day.length) {
+      throw new Error('Day not found or not authorized');
+    }
+
+    // Delete existing exercises for this day
+    await dbRun('DELETE FROM workout_day_exercises WHERE day_id = ?', [day_id]);
+
+    // Insert new exercises
+    if (exercises && exercises.length > 0) {
+      for (let exIdx = 0; exIdx < exercises.length; exIdx++) {
+        const ex = exercises[exIdx];
+        await dbRun(
+          `INSERT INTO workout_day_exercises
+            (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            day_id,
+            ex.exercise_id,
+            ex.sets,
+            ex.reps,
+            ex.weight || 0,
+            exIdx,
+            ex.exercise_type || 'weighted',
+            ex.target_rpe || null,
+            ex.reps_min || null,
+            ex.reps_max || null,
+          ]
+        );
+      }
+    }
+
+    await dbRun('COMMIT');
+    res.json({ message: 'Day exercises updated successfully' });
+  } catch (err) {
+    try {
+      await dbRun('ROLLBACK');
+    } catch (_) {}
+    res.status(400).json({ error: err.message });
+  }
+};
+
 exports.deletePlan = async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Not authenticated' });
