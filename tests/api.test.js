@@ -35,67 +35,71 @@ const app = require('../src/app');
 const db = require('../src/config/db');
 
 describe('Health Tracker API', () => {
-  beforeAll((done) => {
-    db.serialize(() => {
-      db.run(`CREATE TABLE IF NOT EXISTS measurements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        date TEXT,
-        bodyweight REAL,
-        body_fat REAL,
-        chest REAL,
-        waist REAL,
-        biceps REAL,
-        forearm REAL,
-        calf REAL,
-        thigh REAL
-      )`);
-      db.run(`CREATE TABLE IF NOT EXISTS photos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        date TEXT,
-        front_path TEXT,
-        side_path TEXT,
-        back_path TEXT,
-        front_google_id TEXT,
-        side_google_id TEXT,
-        back_google_id TEXT,
-        UNIQUE(user_id, date)
-      )`);
-      db.run(
-        `CREATE TABLE IF NOT EXISTS sleep (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        date TEXT,
-        bedtime TEXT,
-        wake_time TEXT,
-        rhr INTEGER,
-        sleep_score INTEGER,
-        deep_sleep_minutes INTEGER,
-        rem_sleep_minutes INTEGER,
-        UNIQUE(user_id, date)
-      )`,
-        (err) => {
-          done(err);
-        }
-      );
-    });
+  beforeAll(async () => {
+    // Ensure all tables exist (though db.js should handle this, tests often recreate)
+    await db.run(`CREATE TABLE IF NOT EXISTS measurements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      bodyweight REAL,
+      body_fat REAL,
+      chest REAL,
+      waist REAL,
+      biceps REAL,
+      forearm REAL,
+      calf REAL,
+      thigh REAL
+    )`);
+    await db.run(`CREATE TABLE IF NOT EXISTS photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      front_path TEXT,
+      side_path TEXT,
+      back_path TEXT,
+      front_google_id TEXT,
+      side_google_id TEXT,
+      back_google_id TEXT,
+      UNIQUE(user_id, date)
+    )`);
+    await db.run(`CREATE TABLE IF NOT EXISTS sleep (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      bedtime TEXT,
+      wake_time TEXT,
+      rhr INTEGER,
+      sleep_score INTEGER,
+      deep_sleep_minutes INTEGER,
+      rem_sleep_minutes INTEGER,
+      awake_minutes INTEGER,
+      light_minutes INTEGER,
+      UNIQUE(user_id, date)
+    )`);
+    await db.run(`CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE,
+      name TEXT,
+      picture TEXT,
+      access_token TEXT,
+      refresh_token TEXT,
+      expiry_date INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
   });
 
-  beforeEach((done) => {
-    db.serialize(() => {
-      db.run('DELETE FROM measurements');
-      db.run('DELETE FROM photos');
-      db.run('DELETE FROM sleep', (err) => {
-        done(err);
-      });
-    });
+  beforeEach(async () => {
+    await db.run('DELETE FROM measurements');
+    await db.run('DELETE FROM photos');
+    await db.run('DELETE FROM sleep');
+    await db.run('DELETE FROM users');
   });
 
-  afterAll((done) => {
-    db.close((err) => {
-      done(err);
-    });
+  afterAll(async () => {
+    if (db.close) {
+      await new Promise((resolve) => db.close(resolve));
+    }
   });
 
   describe('Measurement API', () => {
@@ -190,18 +194,12 @@ describe('Health Tracker API', () => {
     });
 
     test('GET /api/sleep should return entries in descending order', async () => {
-      await new Promise((resolve) => {
-        db.run(
-          "INSERT INTO sleep (user_id, date, bedtime) VALUES ('test-user-id', '2023-10-01', '22:00')",
-          resolve
-        );
-      });
-      await new Promise((resolve) => {
-        db.run(
-          "INSERT INTO sleep (user_id, date, bedtime) VALUES ('test-user-id', '2023-10-15', '22:30')",
-          resolve
-        );
-      });
+      await db.run(
+        "INSERT INTO sleep (user_id, date, bedtime) VALUES ('test-user-id', '2023-10-01', '22:00')"
+      );
+      await db.run(
+        "INSERT INTO sleep (user_id, date, bedtime) VALUES ('test-user-id', '2023-10-15', '22:30')"
+      );
 
       const response = await request(app).get('/api/sleep');
       expect(response.status).toBe(200);
@@ -211,19 +209,18 @@ describe('Health Tracker API', () => {
     });
 
     test('DELETE /api/sleep/:id should delete an entry', async () => {
-      await new Promise((resolve) => {
-        db.run(
-          "INSERT INTO sleep (id, user_id, date) VALUES (999, 'test-user-id', '2023-10-20')",
-          resolve
-        );
-      });
+      const res = await db.run(
+        "INSERT INTO sleep (user_id, date) VALUES ('test-user-id', '2023-10-20')"
+      );
+      // We need the ID. Since we use the promise wrapper, it's returned.
+      const id = res.lastID;
 
-      const response = await request(app).delete('/api/sleep/999');
+      const response = await request(app).delete(`/api/sleep/${id}`);
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Sleep entry deleted successfully');
 
       const getResponse = await request(app).get('/api/sleep');
-      expect(getResponse.body.find((e) => e.id === 999)).toBeUndefined();
+      expect(getResponse.body.find((e) => e.id === id)).toBeUndefined();
     });
   });
 });

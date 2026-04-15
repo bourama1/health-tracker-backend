@@ -64,6 +64,12 @@ jest.mock('googleapis', () => {
       generateAuthUrl: jest.fn(),
       getToken: jest.fn(),
       on: jest.fn(),
+      refreshToken: jest.fn().mockResolvedValue({
+        tokens: {
+            access_token: 'new-access-token',
+            expiry_date: Date.now() + 3600000
+        }
+      })
     })),
   };
 
@@ -76,10 +82,35 @@ jest.mock('googleapis', () => {
 });
 
 describe('Google Fit Sync API', () => {
-  beforeEach((done) => {
-    db.run('DELETE FROM sleep', (err) => {
-      done(err);
-    });
+  beforeAll(async () => {
+    await db.run(`CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        access_token TEXT,
+        refresh_token TEXT,
+        expiry_date INTEGER
+    )`);
+    await db.run(`CREATE TABLE IF NOT EXISTS sleep (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        date TEXT,
+        bedtime TEXT,
+        wake_time TEXT,
+        rhr INTEGER,
+        deep_sleep_minutes INTEGER,
+        rem_sleep_minutes INTEGER,
+        UNIQUE(user_id, date)
+    )`);
+  });
+
+  beforeEach(async () => {
+    await db.run('DELETE FROM sleep');
+    await db.run('DELETE FROM users');
+    await db.run(
+        `INSERT INTO users (id, email, access_token, refresh_token, expiry_date) 
+         VALUES (?, ?, ?, ?, ?)`,
+        ['test-user-id', 'test@example.com', 'mock-access-token', 'mock-refresh-token', Date.now() + 3600000]
+    );
   });
 
   test('POST /api/fit/sync-sleep should sync sleep data from Google Fit', async () => {
@@ -90,15 +121,10 @@ describe('Google Fit Sync API', () => {
     expect(response.status).toBe(200);
     expect(response.body.synced).toBe(1);
 
-    const sleepData = await new Promise((resolve) => {
-      db.all(
+    const sleepData = await db.all(
         'SELECT * FROM sleep WHERE user_id = ?',
-        ['test-user-id'],
-        (err, rows) => {
-          resolve(rows);
-        }
-      );
-    });
+        ['test-user-id']
+    );
 
     expect(sleepData.length).toBe(1);
     expect(sleepData[0].date).toBe('2023-10-27');

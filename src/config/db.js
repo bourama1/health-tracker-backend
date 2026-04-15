@@ -128,7 +128,81 @@ const getDatabase = () => {
           }
         }
       });
-      return db;
+
+      // Wrap SQLite to support both promises and callbacks to match PG implementation
+      const wrapper = {
+        run: (sql, params = [], callback) => {
+          if (typeof params === 'function') {
+            callback = params;
+            params = [];
+          }
+          const promise = new Promise((resolve, reject) => {
+            db.run(sql, params, function (err) {
+              if (err) {
+                if (callback) {
+                  callback(err);
+                  resolve(); // Resolve anyway if callback handled it to avoid unhandled rejection
+                } else {
+                  reject(err);
+                }
+              } else {
+                const result = { lastID: this.lastID, changes: this.changes };
+                if (callback) callback.call(this, null);
+                resolve(result);
+              }
+            });
+          });
+          return promise;
+        },
+        all: (sql, params = [], callback) => {
+          if (typeof params === 'function') {
+            callback = params;
+            params = [];
+          }
+          const promise = new Promise((resolve, reject) => {
+            db.all(sql, params, (err, rows) => {
+              if (err) {
+                if (callback) {
+                  callback(err);
+                  resolve();
+                } else {
+                  reject(err);
+                }
+              } else {
+                if (callback) callback(null, rows);
+                resolve(rows);
+              }
+            });
+          });
+          return promise;
+        },
+        get: (sql, params = [], callback) => {
+          if (typeof params === 'function') {
+            callback = params;
+            params = [];
+          }
+          const promise = new Promise((resolve, reject) => {
+            db.get(sql, params, (err, row) => {
+              if (err) {
+                if (callback) {
+                  callback(err);
+                  resolve();
+                } else {
+                  reject(err);
+                }
+              } else {
+                if (callback) callback(null, row);
+                resolve(row);
+              }
+            });
+          });
+          return promise;
+        },
+        serialize: (callback) => db.serialize(callback),
+        close: (callback) => db.close(callback),
+        on: (event, callback) => db.on(event, callback),
+      };
+      return wrapper;
     } catch (err) {
       console.error(
         '[DB] CRITICAL: Failed to load SQLite driver:',
@@ -163,13 +237,14 @@ const translateSql = (sql) => {
 
 const safeRun = (sql, params = []) => {
   const finalSql = translateSql(sql);
-  return db.run(finalSql, params, (err) => {
+  return db.run(finalSql, params).catch((err) => {
     if (
       err &&
       !err.message.includes('already exists') &&
-      !err.message.includes('duplicate column name')
+      !err.message.includes('duplicate column name') &&
+      !err.message.includes('no such table')
     ) {
-      // Silently ignore expected migration errors
+      console.error(`[DB] safeRun error for SQL: ${finalSql}`, err.message);
     }
   });
 };
@@ -334,6 +409,18 @@ db.serialize(() => {
       is_pr INTEGER DEFAULT 0,
       FOREIGN KEY (session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE,
       FOREIGN KEY (exercise_id) REFERENCES exercises(id)
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE,
+      name TEXT,
+      picture TEXT,
+      access_token TEXT,
+      refresh_token TEXT,
+      expiry_date INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 });
 

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { scopes } = require('../config/googleConfig');
 const { google } = require('googleapis');
+const { saveUserTokens } = require('../utils/tokenManager');
+const db = require('../config/db');
 
 // Helper to get a fresh OAuth2 client
 const getOAuth2Client = () => {
@@ -46,6 +48,13 @@ router.get('/google/callback', async (req, res) => {
     // Fetch user profile info
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
+
+    // PERSIST USER AND TOKENS
+    await saveUserTokens(userInfo.data.id, tokens, {
+      email: userInfo.data.email,
+      name: userInfo.data.name,
+      picture: userInfo.data.picture,
+    });
 
     req.session.tokens = tokens;
     req.session.user = {
@@ -96,6 +105,15 @@ router.post('/google/verify', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
 
+    // Update tokens in DB if they were passed
+    if (tokens) {
+      await saveUserTokens(userInfo.data.id, tokens, {
+        email: userInfo.data.email,
+        name: userInfo.data.name,
+        picture: userInfo.data.picture,
+      });
+    }
+
     req.session.tokens = tokens || { access_token: tokenToUse };
     req.session.user = {
       id: userInfo.data.id,
@@ -111,9 +129,16 @@ router.post('/google/verify', async (req, res) => {
   }
 });
 
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   if (req.session && req.session.user) {
-    res.json({ authenticated: true, user: req.session.user });
+    // Optionally fetch fresh user data from DB
+    const user = await db.get('SELECT id, email, name, picture FROM users WHERE id = ?', [req.session.user.id]);
+    if (user) {
+      req.session.user = user;
+      res.json({ authenticated: true, user });
+    } else {
+      res.json({ authenticated: true, user: req.session.user });
+    }
   } else {
     res.json({ authenticated: false });
   }

@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const db = require('../config/db');
+const { getValidClient } = require('../utils/tokenManager');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -55,37 +56,20 @@ exports.syncGoogleFitSleep = async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const tokens = req.session.tokens;
-  if (!tokens) {
-    return res
-      .status(401)
-      .json({ error: 'No Google tokens in session. Please log in again.' });
-  }
-
+  const userId = req.session.user.id;
   const days = Math.min(parseInt(req.query.days || '30', 10), 90);
   const tz = req.query.tz || 'UTC';
   const endMs = Date.now();
   const startMs = endMs - days * 24 * 60 * 60 * 1000;
 
   console.log(
-    `[FitSync] Starting sync for user ${req.session.user.id}, days: ${days}, tz: ${tz}`
+    `[FitSync] Starting sync for user ${userId}, days: ${days}, tz: ${tz}`
   );
-
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI ||
-      'http://localhost:5000/api/auth/google/callback'
-  );
-  oauth2Client.setCredentials(tokens);
-
-  oauth2Client.on('tokens', (newTokens) => {
-    req.session.tokens = { ...tokens, ...newTokens };
-  });
-
-  const fitness = google.fitness({ version: 'v1', auth: oauth2Client });
 
   try {
+    const oauth2Client = await getValidClient(userId);
+    const fitness = google.fitness({ version: 'v1', auth: oauth2Client });
+
     // ── 1. Fetch sleep SESSIONS ─────────────────────────────────────────────
     const sessionsResp = await fitness.users.sessions.list({
       userId: 'me',
