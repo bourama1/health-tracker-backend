@@ -11,6 +11,7 @@ const sleepRoutes = require('./routes/sleepRoutes');
 const workoutRoutes = require('./routes/workoutRoutes');
 const authRoutes = require('./routes/authRoutes');
 const fitRoutes = require('./routes/fitRoutes');
+const ultrahumanRoutes = require('./routes/ultrahumanRoutes');
 
 const app = express();
 
@@ -88,5 +89,6 @@ app.use('/api/sleep', sleepRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/fit', fitRoutes);
+app.use('/api/ultrahuman', ultrahumanRoutes);
 
 module.exports = app;

@@ -306,6 +306,7 @@ db.serialize(() => {
   addCol('measurements', 'forearm', 'REAL');
   addCol('measurements', 'calf', 'REAL');
   addCol('measurements', 'thigh', 'REAL');
+  addCol('measurements', 'vo2_max', 'REAL');
   addCol('photos', 'front_path', 'TEXT');
   addCol('photos', 'side_path', 'TEXT');
   addCol('photos', 'back_path', 'TEXT');
@@ -315,6 +316,10 @@ db.serialize(() => {
   addCol('sleep', 'wake_time', 'TEXT');
   addCol('sleep', 'awake_minutes', 'INTEGER');
   addCol('sleep', 'light_minutes', 'INTEGER');
+  addCol('sleep', 'hrv', 'REAL');
+  addCol('sleep', 'sleep_score', 'REAL');
+  addCol('sleep', 'temp_dev', 'REAL');
+  addCol('sleep', 'recovery_index', 'INTEGER');
 
   // Ensure unique indexes exist for ON CONFLICT to work in PostgreSQL
   safeRun(`DROP INDEX IF EXISTS idx_sleep_date`);
