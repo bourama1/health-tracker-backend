@@ -290,6 +290,16 @@ db.serialize(() => {
       UNIQUE(user_id, date)
     )`);
 
+  safeRun(`CREATE TABLE IF NOT EXISTS activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      steps INTEGER,
+      active_minutes INTEGER,
+      movement_index INTEGER,
+      UNIQUE(user_id, date)
+    )`);
+
   const addCol = (table, col, type) => {
     const finalType = isProduction
       ? type.replace(/REAL/gi, 'DOUBLE PRECISION')
