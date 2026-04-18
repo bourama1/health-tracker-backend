@@ -25,7 +25,7 @@ exports.saveActivity = async (req, res) => {
   }
 
   const userId = req.session.user.id;
-  const { date, steps, active_minutes, movement_index } = req.body;
+  const { date, steps } = req.body;
 
   if (!date) {
     return res.status(400).json({ error: 'Date is required' });
@@ -33,20 +33,12 @@ exports.saveActivity = async (req, res) => {
 
   try {
     const sql = `
-      INSERT INTO activity (user_id, date, steps, active_minutes, movement_index)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO activity (user_id, date, steps)
+      VALUES (?, ?, ?)
       ON CONFLICT(user_id, date) DO UPDATE SET
-        steps = excluded.steps,
-        active_minutes = excluded.active_minutes,
-        movement_index = excluded.movement_index
+        steps = excluded.steps
     `;
-    await db.run(sql, [
-      userId,
-      date,
-      steps || null,
-      active_minutes || null,
-      movement_index || null,
-    ]);
+    await db.run(sql, [userId, date, steps || null]);
     res.json({ message: 'Activity saved successfully' });
   } catch (err) {
     console.error('[ActivityController] Error saving activity:', err);

@@ -81,8 +81,6 @@ exports.syncUltrahumanData = async (req, res) => {
         const weightObj = dayMetrics.find(m => m.type === 'weight')?.object || {};
         const recoveryObj = dayMetrics.find(m => m.type === 'recovery_index')?.object || {};
         const vo2maxObj = dayMetrics.find(m => m.type === 'vo2_max')?.object || {};
-        const movementIndexObj = dayMetrics.find(m => m.type === 'movement_index')?.object || {};
-        const activeMinutesObj = dayMetrics.find(m => m.type === 'active_minutes')?.object || {};
         const stepsObj = dayMetrics.find(m => m.type === 'steps')?.object || { values: [] };
 
         const totalSteps = (stepsObj.values || []).reduce((acc, curr) => acc + (curr.value || 0), 0);
@@ -137,23 +135,19 @@ exports.syncUltrahumanData = async (req, res) => {
           sleepRecord.awake_minutes
         ]);
 
-        // Upsert Activity
+        // Upsert Activity (Steps only)
         const activitySql = `
           INSERT INTO activity
-            (user_id, date, steps, active_minutes, movement_index)
-          VALUES (?, ?, ?, ?, ?)
+            (user_id, date, steps)
+          VALUES (?, ?, ?)
           ON CONFLICT(user_id, date) DO UPDATE SET
-            steps          = COALESCE(excluded.steps,          activity.steps),
-            active_minutes = COALESCE(excluded.active_minutes, activity.active_minutes),
-            movement_index = COALESCE(excluded.movement_index, activity.movement_index)
+            steps = COALESCE(excluded.steps, activity.steps)
         `;
 
         await db.run(activitySql, [
           userId,
           dateStr,
-          Math.round(totalSteps),
-          activeMinutesObj.value || null,
-          movementIndexObj.value || null
+          Math.round(totalSteps)
         ]);
 
         // If weight or VO2 Max are present
