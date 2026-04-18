@@ -648,6 +648,45 @@ exports.getLastSessionForDay = async (req, res) => {
   }
 };
 
+exports.getLastPerformance = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  try {
+    const { exercise_ids } = req.query;
+    if (!exercise_ids) {
+      return res.status(400).json({ error: 'exercise_ids required' });
+    }
+    const ids = exercise_ids.split(',');
+    
+    // For each exercise, find the most recent session's logs
+    const results = {};
+    
+    for (const id of ids) {
+      const logs = await dbAll(
+        `SELECT weight, reps, rpe
+         FROM workout_session_logs
+         WHERE exercise_id = ?
+         AND session_id = (
+           SELECT MAX(ws.id)
+           FROM workout_sessions ws
+           JOIN workout_session_logs wsl ON ws.id = wsl.session_id
+           WHERE wsl.exercise_id = ? AND ws.user_id = ?
+         )
+         ORDER BY set_number ASC`,
+        [id, id, req.session.user.id]
+      );
+      if (logs.length > 0) {
+        results[id] = logs;
+      }
+    }
+    
+    res.json(results);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
 exports.getExerciseProgress = async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Not authenticated' });

@@ -19,6 +19,7 @@ router.put('/days/:day_id/exercises', c.updateDayExercises);
 router.get('/sessions', c.getSessionHistory);
 router.post('/sessions', c.saveSession);
 router.get('/sessions/last-for-day/:day_id', c.getLastSessionForDay);
+router.get('/sessions/last-performance', c.getLastPerformance);
 
 // Analytics
 router.get('/progress/:exercise_id', c.getExerciseProgress);
