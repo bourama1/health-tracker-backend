@@ -46,7 +46,8 @@ const getValidClient = async (userId) => {
   const client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+    process.env.GOOGLE_REDIRECT_URI ||
+      'http://localhost:5000/api/auth/google/callback'
   );
 
   const tokens = {
@@ -58,16 +59,23 @@ const getValidClient = async (userId) => {
   client.setCredentials(tokens);
 
   // Check if token is expired (or expires in the next 5 minutes)
-  const isExpired = user.expiry_date ? (user.expiry_date <= (Date.now() + 300000)) : true;
+  const isExpired = user.expiry_date
+    ? user.expiry_date <= Date.now() + 300000
+    : true;
 
   if (isExpired && user.refresh_token) {
     console.log(`[TokenManager] Refreshing token for user ${userId}...`);
     try {
-      const { tokens: newTokens } = await client.refreshToken(user.refresh_token);
+      const { tokens: newTokens } = await client.refreshToken(
+        user.refresh_token
+      );
       await saveUserTokens(userId, newTokens);
       client.setCredentials(newTokens);
     } catch (error) {
-      console.error(`[TokenManager] Failed to refresh token for user ${userId}:`, error.message);
+      console.error(
+        `[TokenManager] Failed to refresh token for user ${userId}:`,
+        error.message
+      );
       throw error;
     }
   } else if (isExpired && !user.refresh_token) {

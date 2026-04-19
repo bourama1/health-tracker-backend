@@ -66,10 +66,10 @@ jest.mock('googleapis', () => {
       on: jest.fn(),
       refreshToken: jest.fn().mockResolvedValue({
         tokens: {
-            access_token: 'new-access-token',
-            expiry_date: Date.now() + 3600000
-        }
-      })
+          access_token: 'new-access-token',
+          expiry_date: Date.now() + 3600000,
+        },
+      }),
     })),
   };
 
@@ -107,9 +107,15 @@ describe('Google Fit Sync API', () => {
     await db.run('DELETE FROM sleep');
     await db.run('DELETE FROM users');
     await db.run(
-        `INSERT INTO users (id, email, access_token, refresh_token, expiry_date) 
+      `INSERT INTO users (id, email, access_token, refresh_token, expiry_date) 
          VALUES (?, ?, ?, ?, ?)`,
-        ['test-user-id', 'test@example.com', 'mock-access-token', 'mock-refresh-token', Date.now() + 3600000]
+      [
+        'test-user-id',
+        'test@example.com',
+        'mock-access-token',
+        'mock-refresh-token',
+        Date.now() + 3600000,
+      ]
     );
   });
 
@@ -121,10 +127,9 @@ describe('Google Fit Sync API', () => {
     expect(response.status).toBe(200);
     expect(response.body.synced).toBe(1);
 
-    const sleepData = await db.all(
-        'SELECT * FROM sleep WHERE user_id = ?',
-        ['test-user-id']
-    );
+    const sleepData = await db.all('SELECT * FROM sleep WHERE user_id = ?', [
+      'test-user-id',
+    ]);
 
     expect(sleepData.length).toBe(1);
     expect(sleepData[0].date).toBe('2023-10-27');

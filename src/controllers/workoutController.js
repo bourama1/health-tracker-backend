@@ -658,10 +658,10 @@ exports.getLastPerformance = async (req, res) => {
       return res.status(400).json({ error: 'exercise_ids required' });
     }
     const ids = exercise_ids.split(',');
-    
+
     // For each exercise, find the most recent session's logs
     const results = {};
-    
+
     for (const id of ids) {
       const logs = await dbAll(
         `SELECT weight, reps, rpe
@@ -680,7 +680,7 @@ exports.getLastPerformance = async (req, res) => {
         results[id] = logs;
       }
     }
-    
+
     res.json(results);
   } catch (err) {
     res.status(400).json({ error: err.message });

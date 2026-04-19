@@ -43,10 +43,10 @@ exports.syncUltrahumanData = async (req, res) => {
 
       try {
         const response = await axios.get(ULTRAHUMAN_API_URL, {
-          headers: { 'Authorization': token },
+          headers: { Authorization: token },
           params: {
-            date: dateStr
-          }
+            date: dateStr,
+          },
         });
 
         const apiResponse = response.data;
@@ -66,7 +66,7 @@ exports.syncUltrahumanData = async (req, res) => {
               timeZone: tz,
               hour: '2-digit',
               minute: '2-digit',
-              hour12: false
+              hour12: false,
             }).format(new Date(epoch * 1000));
           } catch (e) {
             return new Date(epoch * 1000).toISOString().slice(11, 16);
@@ -74,17 +74,30 @@ exports.syncUltrahumanData = async (req, res) => {
         };
 
         // Extract metrics from the array
-        const sleepObj = dayMetrics.find(m => m.type === 'sleep')?.object || {};
-        const rhrObj = dayMetrics.find(m => m.type === 'sleep_rhr')?.object || {};
-        const hrvObj = dayMetrics.find(m => m.type === 'avg_sleep_hrv')?.object || 
-                       dayMetrics.find(m => m.type === 'hrv')?.object || {};
-        const weightObj = dayMetrics.find(m => m.type === 'weight')?.object || {};
-        const recoveryObj = dayMetrics.find(m => m.type === 'recovery_index')?.object || {};
-        const vo2maxObj = dayMetrics.find(m => m.type === 'vo2_max')?.object || {};
-        const movementIndexObj = dayMetrics.find(m => m.type === 'movement_index')?.object || {};
-        const stepsObj = dayMetrics.find(m => m.type === 'steps')?.object || { values: [] };
+        const sleepObj =
+          dayMetrics.find((m) => m.type === 'sleep')?.object || {};
+        const rhrObj =
+          dayMetrics.find((m) => m.type === 'sleep_rhr')?.object || {};
+        const hrvObj =
+          dayMetrics.find((m) => m.type === 'avg_sleep_hrv')?.object ||
+          dayMetrics.find((m) => m.type === 'hrv')?.object ||
+          {};
+        const weightObj =
+          dayMetrics.find((m) => m.type === 'weight')?.object || {};
+        const recoveryObj =
+          dayMetrics.find((m) => m.type === 'recovery_index')?.object || {};
+        const vo2maxObj =
+          dayMetrics.find((m) => m.type === 'vo2_max')?.object || {};
+        const movementIndexObj =
+          dayMetrics.find((m) => m.type === 'movement_index')?.object || {};
+        const stepsObj = dayMetrics.find((m) => m.type === 'steps')?.object || {
+          values: [],
+        };
 
-        const totalSteps = (stepsObj.values || []).reduce((acc, curr) => acc + (curr.value || 0), 0);
+        const totalSteps = (stepsObj.values || []).reduce(
+          (acc, curr) => acc + (curr.value || 0),
+          0
+        );
 
         const sleepRecord = {
           user_id: userId,
@@ -99,7 +112,10 @@ exports.syncUltrahumanData = async (req, res) => {
           deep_sleep_minutes: sleepObj.deep_sleep?.minutes || null,
           rem_sleep_minutes: sleepObj.rem_sleep?.minutes || null,
           light_minutes: sleepObj.light_sleep?.minutes || null,
-          awake_minutes: sleepObj.time_in_bed?.minutes ? (sleepObj.time_in_bed.minutes - (sleepObj.total_sleep?.minutes || 0)) : null
+          awake_minutes: sleepObj.time_in_bed?.minutes
+            ? sleepObj.time_in_bed.minutes -
+              (sleepObj.total_sleep?.minutes || 0)
+            : null,
         };
 
         // Upsert Sleep
@@ -133,7 +149,7 @@ exports.syncUltrahumanData = async (req, res) => {
           sleepRecord.deep_sleep_minutes,
           sleepRecord.rem_sleep_minutes,
           sleepRecord.light_minutes,
-          sleepRecord.awake_minutes
+          sleepRecord.awake_minutes,
         ]);
 
         // Upsert Activity (Steps and Movement Index)
@@ -150,19 +166,24 @@ exports.syncUltrahumanData = async (req, res) => {
           userId,
           dateStr,
           Math.round(totalSteps),
-          movementIndexObj.value || null
+          movementIndexObj.value || null,
         ]);
 
         // If weight or VO2 Max are present
         if (weightObj.value || vo2maxObj.value) {
-            const weightSql = `
+          const weightSql = `
                 INSERT INTO measurements (user_id, date, bodyweight, vo2_max)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(user_id, date) DO UPDATE SET
                     bodyweight = COALESCE(excluded.bodyweight, measurements.bodyweight),
                     vo2_max    = COALESCE(excluded.vo2_max,    measurements.vo2_max)
             `;
-            await db.run(weightSql, [userId, dateStr, weightObj.value || null, vo2maxObj.value || null]);
+          await db.run(weightSql, [
+            userId,
+            dateStr,
+            weightObj.value || null,
+            vo2maxObj.value || null,
+          ]);
         }
 
         syncedDays++;

@@ -132,7 +132,10 @@ router.post('/google/verify', async (req, res) => {
 router.get('/status', async (req, res) => {
   if (req.session && req.session.user) {
     // Optionally fetch fresh user data from DB
-    const user = await db.get('SELECT id, email, name, picture FROM users WHERE id = ?', [req.session.user.id]);
+    const user = await db.get(
+      'SELECT id, email, name, picture FROM users WHERE id = ?',
+      [req.session.user.id]
+    );
     if (user) {
       req.session.user = user;
       res.json({ authenticated: true, user });
