@@ -105,6 +105,49 @@ describe('Workout API', () => {
       expect(historyResponse.body[0].logs[0].exercise_id).toBe('test_squat');
       expect(historyResponse.body[0].logs[0].weight).toBe(80);
     });
+
+    test('getLastSessionForDay and getLastPerformance should return notes', async () => {
+      // First create a plan to get a day_id
+      const newPlan = {
+        name: 'Notes Test Plan',
+        days: [{ name: 'Day 1', exercises: [{ exercise_id: 'test_squat' }] }],
+      };
+      await request(app).post('/api/workouts/plans').send(newPlan);
+      const plans = await request(app).get('/api/workouts/plans');
+      const dayId = plans.body[0].days[0].id;
+
+      const newSession = {
+        day_id: dayId,
+        date: '2023-10-27',
+        notes: 'Feeling strong today',
+        logs: [
+          {
+            exercise_id: 'test_squat',
+            set_number: 1,
+            weight: 80,
+            reps: 5,
+            notes: 'Easy set',
+          },
+        ],
+      };
+
+      await request(app).post('/api/workouts/sessions').send(newSession);
+
+      // Verify getLastSessionForDay
+      const lastSessionResponse = await request(app).get(
+        `/api/workouts/sessions/last-for-day/${dayId}`
+      );
+      expect(lastSessionResponse.status).toBe(200);
+      expect(lastSessionResponse.body.notes).toBe('Feeling strong today');
+      expect(lastSessionResponse.body.logs[0].notes).toBe('Easy set');
+
+      // Verify getLastPerformance
+      const lastPerfResponse = await request(app).get(
+        `/api/workouts/sessions/last-performance?exercise_ids=test_squat`
+      );
+      expect(lastPerfResponse.status).toBe(200);
+      expect(lastPerfResponse.body.test_squat[0].notes).toBe('Easy set');
+    });
   });
 
   describe('Analytics', () => {

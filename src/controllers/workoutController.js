@@ -628,7 +628,7 @@ exports.getLastSessionForDay = async (req, res) => {
   try {
     const { day_id } = req.params;
     const sessions = await dbAll(
-      `SELECT id, date FROM workout_sessions WHERE day_id = ? AND user_id = ? ORDER BY date DESC LIMIT 1`,
+      `SELECT id, date, notes FROM workout_sessions WHERE day_id = ? AND user_id = ? ORDER BY date DESC LIMIT 1`,
       [day_id, req.session.user.id]
     );
     if (!sessions.length) return res.json(null);
@@ -664,7 +664,7 @@ exports.getLastPerformance = async (req, res) => {
 
     for (const id of ids) {
       const logs = await dbAll(
-        `SELECT weight, reps, rpe
+        `SELECT weight, reps, rpe, notes
          FROM workout_session_logs
          WHERE exercise_id = ?
          AND session_id = (
