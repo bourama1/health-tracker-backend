@@ -339,8 +339,13 @@ exports.updatePlan = async (req, res) => {
       [name, description, id]
     );
 
-    // Simplest way to update days/exercises: delete and re-insert
-    await dbRun('DELETE FROM workout_days WHERE plan_id = ?', [id]);
+    // Get existing days to manage them surgically
+    const existingDays = await dbAll(
+      'SELECT id FROM workout_days WHERE plan_id = ?',
+      [id]
+    );
+    const existingDayIds = existingDays.map((d) => d.id);
+    const processedDayIds = [];
 
     if (days && days.length > 0) {
       for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
@@ -348,10 +353,30 @@ exports.updatePlan = async (req, res) => {
         const scheduledStr = Array.isArray(day.scheduled_days)
           ? day.scheduled_days.join(',')
           : '';
-        const { lastID: dayId } = await dbRun(
-          `INSERT INTO workout_days (plan_id, name, day_order, scheduled_days) VALUES (?, ?, ?, ?)`,
-          [id, day.name, dayIndex, scheduledStr]
-        );
+
+        let currentDayId;
+
+        if (day.id && existingDayIds.includes(day.id)) {
+          // Update existing day
+          await dbRun(
+            'UPDATE workout_days SET name = ?, day_order = ?, scheduled_days = ? WHERE id = ?',
+            [day.name, dayIndex, scheduledStr, day.id]
+          );
+          currentDayId = day.id;
+          processedDayIds.push(currentDayId);
+        } else {
+          // Insert new day
+          const { lastID } = await dbRun(
+            `INSERT INTO workout_days (plan_id, name, day_order, scheduled_days) VALUES (?, ?, ?, ?)`,
+            [id, day.name, dayIndex, scheduledStr]
+          );
+          currentDayId = lastID;
+        }
+
+        // Surgical update for exercises within the day: delete and re-insert (safe as nothing links to wde_id)
+        await dbRun('DELETE FROM workout_day_exercises WHERE day_id = ?', [
+          currentDayId,
+        ]);
         if (day.exercises && day.exercises.length > 0) {
           for (let exIdx = 0; exIdx < day.exercises.length; exIdx++) {
             const ex = day.exercises[exIdx];
@@ -360,7 +385,7 @@ exports.updatePlan = async (req, res) => {
                 (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
-                dayId,
+                currentDayId,
                 ex.exercise_id,
                 ex.sets,
                 ex.reps,
@@ -375,6 +400,14 @@ exports.updatePlan = async (req, res) => {
           }
         }
       }
+    }
+
+    // Delete days that were removed from the plan
+    const daysToDelete = existingDayIds.filter(
+      (oldId) => !processedDayIds.includes(oldId)
+    );
+    for (const deleteId of daysToDelete) {
+      await dbRun('DELETE FROM workout_days WHERE id = ?', [deleteId]);
     }
 
     await dbRun('COMMIT');
@@ -399,8 +432,8 @@ exports.updateDayExercises = async (req, res) => {
 
     // Verify ownership via plan
     const day = await dbAll(
-      `SELECT wd.id FROM workout_days wd 
-       JOIN workout_plans wp ON wd.plan_id = wp.id 
+      `SELECT wd.id FROM workout_days wd
+       JOIN workout_plans wp ON wd.plan_id = wp.id
        WHERE wd.id = ? AND wp.user_id = ?`,
       [day_id, req.session.user.id]
     );
@@ -568,15 +601,15 @@ exports.getSessionHistory = async (req, res) => {
       `
       SELECT
         ws.id as session_id, ws.date, ws.notes as session_notes,
-        wd.name as day_name,
-        wp.name as plan_name,
+        COALESCE(wd.name, 'Unknown Day') as day_name,
+        COALESCE(wp.name, 'Deleted Plan') as plan_name,
         wsl.id as log_id, wsl.exercise_id, wsl.set_number,
         wsl.weight, wsl.reps, wsl.rpe, wsl.notes as log_notes,
         wsl.duration_seconds, wsl.is_pr,
         e.name as exercise_name, e.primary_muscles, e.secondary_muscles
       FROM workout_sessions ws
-      JOIN workout_days wd ON ws.day_id = wd.id
-      JOIN workout_plans wp ON wd.plan_id = wp.id
+      LEFT JOIN workout_days wd ON ws.day_id = wd.id
+      LEFT JOIN workout_plans wp ON wd.plan_id = wp.id
       LEFT JOIN workout_session_logs wsl ON ws.id = wsl.session_id
       LEFT JOIN exercises e ON wsl.exercise_id = e.id
       WHERE ws.user_id = ?
@@ -627,10 +660,28 @@ exports.getLastSessionForDay = async (req, res) => {
   }
   try {
     const { day_id } = req.params;
-    const sessions = await dbAll(
+    let sessions = await dbAll(
       `SELECT id, date, notes FROM workout_sessions WHERE day_id = ? AND user_id = ? ORDER BY date DESC LIMIT 1`,
       [day_id, req.session.user.id]
     );
+
+    // If not found by exact day_id (e.g. plan was updated and days re-inserted), try matching by name
+    if (!sessions.length) {
+      const day = await dbAll(`SELECT name FROM workout_days WHERE id = ?`, [
+        day_id,
+      ]);
+      if (day.length) {
+        sessions = await dbAll(
+          `SELECT ws.id, ws.date, ws.notes
+           FROM workout_sessions ws
+           JOIN workout_days wd ON ws.day_id = wd.id
+           WHERE wd.name = ? AND ws.user_id = ?
+           ORDER BY ws.date DESC LIMIT 1`,
+          [day[0].name, req.session.user.id]
+        );
+      }
+    }
+
     if (!sessions.length) return res.json(null);
     const logs = await dbAll(
       `
