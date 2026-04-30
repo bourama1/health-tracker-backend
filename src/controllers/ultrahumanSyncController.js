@@ -17,7 +17,7 @@ exports.syncUltrahumanData = async (req, res) => {
 
   const userId = req.session.user.id;
   const userEmail = req.session.user.email;
-  const days = Math.min(parseInt(req.query.days || '7', 10), 90);
+  const days = Math.min(parseInt(req.query.days || '7', 10), 120);
   const token = process.env.ULTRAHUMAN_TOKEN;
 
   if (!token) {
@@ -116,24 +116,32 @@ exports.syncUltrahumanData = async (req, res) => {
             ? sleepObj.time_in_bed.minutes -
               (sleepObj.total_sleep?.minutes || 0)
             : null,
+          restorative_sleep_percentage:
+            sleepObj.restorative_sleep?.percentage || null,
+          movements: sleepObj.movements?.count || null,
+          tosses_and_turns: sleepObj.tosses_and_turns?.count || null,
         };
 
         // Upsert Sleep
         const sleepSql = `
           INSERT INTO sleep
             (user_id, date, bedtime, wake_time, rhr, hrv, sleep_score, recovery_index, temp_dev,
-             deep_sleep_minutes, rem_sleep_minutes, light_minutes, awake_minutes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             deep_sleep_minutes, rem_sleep_minutes, light_minutes, awake_minutes,
+             restorative_sleep_percentage, movements, tosses_and_turns)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, date) DO UPDATE SET
-            rhr                 = COALESCE(excluded.rhr,                 sleep.rhr),
-            hrv                 = COALESCE(excluded.hrv,                 sleep.hrv),
-            sleep_score         = COALESCE(excluded.sleep_score,         sleep.sleep_score),
-            recovery_index      = COALESCE(excluded.recovery_index,      sleep.recovery_index),
-            temp_dev            = COALESCE(excluded.temp_dev,            sleep.temp_dev),
-            deep_sleep_minutes  = COALESCE(excluded.deep_sleep_minutes,  sleep.deep_sleep_minutes),
-            rem_sleep_minutes   = COALESCE(excluded.rem_sleep_minutes,   sleep.rem_sleep_minutes),
-            light_minutes       = COALESCE(excluded.light_minutes,       sleep.light_minutes),
-            awake_minutes       = COALESCE(excluded.awake_minutes,       sleep.awake_minutes)
+            rhr                          = COALESCE(excluded.rhr,                          sleep.rhr),
+            hrv                          = COALESCE(excluded.hrv,                          sleep.hrv),
+            sleep_score                  = COALESCE(excluded.sleep_score,                  sleep.sleep_score),
+            recovery_index               = COALESCE(excluded.recovery_index,               sleep.recovery_index),
+            temp_dev                     = COALESCE(excluded.temp_dev,                     sleep.temp_dev),
+            deep_sleep_minutes           = COALESCE(excluded.deep_sleep_minutes,           sleep.deep_sleep_minutes),
+            rem_sleep_minutes            = COALESCE(excluded.rem_sleep_minutes,            sleep.rem_sleep_minutes),
+            light_minutes                = COALESCE(excluded.light_minutes,                sleep.light_minutes),
+            awake_minutes                = COALESCE(excluded.awake_minutes,                sleep.awake_minutes),
+            restorative_sleep_percentage = COALESCE(excluded.restorative_sleep_percentage, sleep.restorative_sleep_percentage),
+            movements                    = COALESCE(excluded.movements,                    sleep.movements),
+            tosses_and_turns             = COALESCE(excluded.tosses_and_turns,             sleep.tosses_and_turns)
         `;
 
         await db.run(sleepSql, [
@@ -150,6 +158,9 @@ exports.syncUltrahumanData = async (req, res) => {
           sleepRecord.rem_sleep_minutes,
           sleepRecord.light_minutes,
           sleepRecord.awake_minutes,
+          sleepRecord.restorative_sleep_percentage,
+          sleepRecord.movements,
+          sleepRecord.tosses_and_turns,
         ]);
 
         // Upsert Activity (Steps and Movement Index)

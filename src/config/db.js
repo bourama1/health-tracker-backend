@@ -287,6 +287,9 @@ db.serialize(() => {
       rhr INTEGER,
       deep_sleep_minutes INTEGER,
       rem_sleep_minutes INTEGER,
+      restorative_sleep_percentage INTEGER,
+      movements INTEGER,
+      tosses_and_turns INTEGER,
       UNIQUE(user_id, date)
     )`);
 
@@ -330,6 +333,9 @@ db.serialize(() => {
   addCol('sleep', 'sleep_score', 'REAL');
   addCol('sleep', 'temp_dev', 'REAL');
   addCol('sleep', 'recovery_index', 'INTEGER');
+  addCol('sleep', 'restorative_sleep_percentage', 'INTEGER');
+  addCol('sleep', 'movements', 'INTEGER');
+  addCol('sleep', 'tosses_and_turns', 'INTEGER');
 
   // Ensure unique indexes exist for ON CONFLICT to work in PostgreSQL
   safeRun(`DROP INDEX IF EXISTS idx_sleep_date`);

@@ -23,26 +23,44 @@ exports.createSleep = (req, res) => {
     bedtime,
     wake_time,
     rhr,
+    hrv,
+    sleep_score,
+    temp_dev,
+    recovery_index,
     deep_sleep_minutes,
     rem_sleep_minutes,
     light_minutes,
     awake_minutes,
+    restorative_sleep_percentage,
+    movements,
+    tosses_and_turns,
   } = req.body;
 
   if (!date) {
     return res.status(400).json({ error: 'Date is required' });
   }
 
-  const query = `INSERT INTO sleep (user_id, date, bedtime, wake_time, rhr, deep_sleep_minutes, rem_sleep_minutes, light_minutes, awake_minutes) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const query = `INSERT INTO sleep (
+                  user_id, date, bedtime, wake_time, rhr, hrv, sleep_score, temp_dev, recovery_index,
+                  deep_sleep_minutes, rem_sleep_minutes, light_minutes, awake_minutes,
+                  restorative_sleep_percentage, movements, tosses_and_turns
+                 ) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(user_id, date) DO UPDATE SET
                  bedtime=excluded.bedtime,
                  wake_time=excluded.wake_time,
                  rhr=excluded.rhr,
+                 hrv=excluded.hrv,
+                 sleep_score=excluded.sleep_score,
+                 temp_dev=excluded.temp_dev,
+                 recovery_index=excluded.recovery_index,
                  deep_sleep_minutes=excluded.deep_sleep_minutes,
                  rem_sleep_minutes=excluded.rem_sleep_minutes,
                  light_minutes=excluded.light_minutes,
-                 awake_minutes=excluded.awake_minutes`;
+                 awake_minutes=excluded.awake_minutes,
+                 restorative_sleep_percentage=excluded.restorative_sleep_percentage,
+                 movements=excluded.movements,
+                 tosses_and_turns=excluded.tosses_and_turns`;
 
   const params = [
     req.session.user.id,
@@ -50,10 +68,17 @@ exports.createSleep = (req, res) => {
     bedtime,
     wake_time,
     rhr,
+    hrv,
+    sleep_score,
+    temp_dev,
+    recovery_index,
     deep_sleep_minutes,
     rem_sleep_minutes,
     light_minutes,
     awake_minutes,
+    restorative_sleep_percentage,
+    movements,
+    tosses_and_turns,
   ];
 
   db.run(query, params, function (err) {

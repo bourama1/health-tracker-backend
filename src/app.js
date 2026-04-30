@@ -13,6 +13,7 @@ const authRoutes = require('./routes/authRoutes');
 const fitRoutes = require('./routes/fitRoutes');
 const ultrahumanRoutes = require('./routes/ultrahumanRoutes');
 const activityRoutes = require('./routes/activityRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
 
@@ -92,5 +93,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/fit', fitRoutes);
 app.use('/api/ultrahuman', ultrahumanRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/ai', aiRoutes);
 
 module.exports = app;
