@@ -63,10 +63,13 @@ exports.analyzeData = async (req, res) => {
 
     res.json({ insights: responseText });
   } catch (error) {
-    console.error(`[AI Analysis] Error with ${provider}:`, error.response?.data || error.message);
-    res.status(500).json({ 
-      error: 'AI analysis failed', 
-      detail: error.response?.data?.error?.message || error.message 
+    console.error(
+      `[AI Analysis] Error with ${provider}:`,
+      error.response?.data || error.message
+    );
+    res.status(500).json({
+      error: 'AI analysis failed',
+      detail: error.response?.data?.error?.message || error.message,
     });
   }
 };
