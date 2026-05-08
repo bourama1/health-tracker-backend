@@ -399,6 +399,8 @@ db.serialize(() => {
       reps_min INTEGER,
       reps_max INTEGER,
       exercise_type TEXT DEFAULT 'weighted',
+      notes TEXT,
+      rest_seconds INTEGER,
       FOREIGN KEY (day_id) REFERENCES workout_days(id) ON DELETE CASCADE,
       FOREIGN KEY (exercise_id) REFERENCES exercises(id)
     )`);
@@ -407,6 +409,8 @@ db.serialize(() => {
   addCol('workout_day_exercises', 'reps_min', 'INTEGER');
   addCol('workout_day_exercises', 'reps_max', 'INTEGER');
   addCol('workout_day_exercises', 'exercise_type', "TEXT DEFAULT 'weighted'");
+  addCol('workout_day_exercises', 'notes', 'TEXT');
+  addCol('workout_day_exercises', 'rest_seconds', 'INTEGER');
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

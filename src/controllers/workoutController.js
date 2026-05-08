@@ -201,6 +201,7 @@ exports.getPlans = async (req, res) => {
         wde.id as wde_id, wde.exercise_id, wde.default_sets,
         wde.default_reps, wde.default_weight, wde.exercise_order,
         wde.exercise_type, wde.target_rpe, wde.reps_min, wde.reps_max,
+        wde.notes as exercise_notes, wde.rest_seconds,
         e.name as exercise_name, e.primary_muscles, e.category
       FROM workout_plans wp
       LEFT JOIN workout_days wd ON wp.id = wd.plan_id
@@ -250,6 +251,8 @@ exports.getPlans = async (req, res) => {
             target_rpe: row.target_rpe,
             reps_min: row.reps_min,
             reps_max: row.reps_max,
+            notes: row.exercise_notes,
+            rest_seconds: row.rest_seconds,
             order: row.exercise_order,
           });
         }
@@ -291,8 +294,8 @@ exports.createPlan = async (req, res) => {
             const ex = day.exercises[exIdx];
             await dbRun(
               `INSERT INTO workout_day_exercises
-                (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max, notes, rest_seconds)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 dayId,
                 ex.exercise_id,
@@ -304,6 +307,8 @@ exports.createPlan = async (req, res) => {
                 ex.target_rpe || null,
                 ex.reps_min || null,
                 ex.reps_max || null,
+                ex.notes || null,
+                ex.rest_seconds || null,
               ]
             );
           }
@@ -389,8 +394,8 @@ exports.updatePlan = async (req, res) => {
             const ex = day.exercises[exIdx];
             await dbRun(
               `INSERT INTO workout_day_exercises
-                (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max, notes, rest_seconds)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 currentDayId,
                 ex.exercise_id,
@@ -402,6 +407,8 @@ exports.updatePlan = async (req, res) => {
                 ex.target_rpe || null,
                 ex.reps_min || null,
                 ex.reps_max || null,
+                ex.notes || null,
+                ex.rest_seconds || null,
               ]
             );
           }
@@ -457,8 +464,8 @@ exports.updateDayExercises = async (req, res) => {
         const ex = exercises[exIdx];
         await dbRun(
           `INSERT INTO workout_day_exercises
-            (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (day_id, exercise_id, default_sets, default_reps, default_weight, exercise_order, exercise_type, target_rpe, reps_min, reps_max, notes, rest_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             day_id,
             ex.exercise_id,
@@ -470,6 +477,8 @@ exports.updateDayExercises = async (req, res) => {
             ex.target_rpe || null,
             ex.reps_min || null,
             ex.reps_max || null,
+            ex.notes || null,
+            ex.rest_seconds || null,
           ]
         );
       }
