@@ -418,8 +418,12 @@ db.serialize(() => {
       day_id INTEGER,
       date TEXT,
       notes TEXT,
+      name TEXT,
       FOREIGN KEY (day_id) REFERENCES workout_days(id)
     )`);
+
+  addCol('workout_sessions', 'notes', 'TEXT');
+  addCol('workout_sessions', 'name', 'TEXT');
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_session_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

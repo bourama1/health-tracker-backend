@@ -39,7 +39,7 @@ const calculateE1RM = (weight, reps, rpe) => {
 
 /**
  * Given a target reps and target RPE, suggests a weight based on a known e1RM.
- * weight = e1RM * (1.0278 - 0.0278 * effectiveReps)
+ * weight = e1RM * (1.0278 - 0.0278 * effective_reps)
  */
 const suggestWeight = (e1RM, targetReps, targetRPE) => {
   if (!e1RM || !targetReps) return null;
@@ -50,6 +50,7 @@ const suggestWeight = (e1RM, targetReps, targetRPE) => {
 // ─── Schema upgrades (safe – runs once at startup) ───────────────────────────
 db.serialize(() => {
   db.run(`ALTER TABLE workout_sessions ADD COLUMN notes TEXT`, () => {});
+  db.run(`ALTER TABLE workout_sessions ADD COLUMN name TEXT`, () => {});
   db.run(`ALTER TABLE workout_session_logs ADD COLUMN notes TEXT`, () => {});
   db.run(`ALTER TABLE workout_session_logs ADD COLUMN rpe REAL`, () => {});
   db.run(
@@ -163,6 +164,7 @@ exports.getExerciseFilters = async (req, res) => {
       `SELECT primary_muscles, secondary_muscles FROM exercises`
     );
     const muscleSet = new Set();
+    muscleSet.clear();
     muscleRows.forEach((r) => {
       (r.primary_muscles || '').split(',').forEach((m) => {
         const t = m.trim();
@@ -554,15 +556,14 @@ exports.saveSession = async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  const { day_id, date, notes, logs } = req.body;
-  if (!day_id || !date)
-    return res.status(400).json({ error: 'day_id and date are required' });
+  const { day_id, date, name, notes, logs } = req.body;
+  if (!date) return res.status(400).json({ error: 'date is required' });
 
   try {
     await dbRun('BEGIN TRANSACTION');
     const { lastID: sessionId } = await dbRun(
-      `INSERT INTO workout_sessions (user_id, day_id, date, notes) VALUES (?, ?, ?, ?)`,
-      [req.session.user.id, day_id, date, notes || null]
+      `INSERT INTO workout_sessions (user_id, day_id, date, name, notes) VALUES (?, ?, ?, ?, ?)`,
+      [req.session.user.id, day_id || null, date, name || null, notes || null]
     );
 
     if (logs && logs.length > 0) {
@@ -616,9 +617,12 @@ exports.getSessionHistory = async (req, res) => {
     const rows = await dbAll(
       `
       SELECT
-        ws.id as session_id, ws.date, ws.notes as session_notes,
-        COALESCE(wd.name, 'Unknown Day') as day_name,
-        COALESCE(wp.name, 'Deleted Plan') as plan_name,
+        ws.id as session_id, ws.date, ws.name as session_custom_name, ws.notes as session_notes,
+        COALESCE(wd.name, CASE WHEN ws.day_id IS NULL THEN 'Ad-hoc' ELSE 'Deleted Day' END) as day_name,
+        CASE 
+          WHEN ws.day_id IS NULL THEN NULL 
+          ELSE COALESCE(wp.name, 'Deleted Plan') 
+        END as plan_name,
         wsl.id as log_id, wsl.exercise_id, wsl.set_number,
         wsl.weight, wsl.reps, wsl.rpe, wsl.notes as log_notes,
         wsl.duration_seconds, wsl.is_pr,
@@ -640,6 +644,7 @@ exports.getSessionHistory = async (req, res) => {
         sessionsMap[row.session_id] = {
           id: row.session_id,
           date: row.date,
+          session_custom_name: row.session_custom_name,
           notes: row.session_notes,
           day_name: row.day_name,
           plan_name: row.plan_name,
@@ -677,7 +682,7 @@ exports.getLastSessionForDay = async (req, res) => {
   try {
     const { day_id } = req.params;
     let sessions = await dbAll(
-      `SELECT id, date, notes FROM workout_sessions WHERE day_id = ? AND user_id = ? ORDER BY date DESC LIMIT 1`,
+      `SELECT id, date, name, notes FROM workout_sessions WHERE day_id = ? AND user_id = ? ORDER BY date DESC LIMIT 1`,
       [day_id, req.session.user.id]
     );
 
@@ -688,7 +693,7 @@ exports.getLastSessionForDay = async (req, res) => {
       ]);
       if (day.length) {
         sessions = await dbAll(
-          `SELECT ws.id, ws.date, ws.notes
+          `SELECT ws.id, ws.date, ws.name, ws.notes
            FROM workout_sessions ws
            JOIN workout_days wd ON ws.day_id = wd.id
            WHERE wd.name = ? AND ws.user_id = ?
