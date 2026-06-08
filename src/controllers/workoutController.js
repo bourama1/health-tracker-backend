@@ -638,10 +638,11 @@ exports.getSessionHistory = async (req, res) => {
       [req.session.user.id]
     );
 
+    const sessions = [];
     const sessionsMap = {};
     rows.forEach((row) => {
       if (!sessionsMap[row.session_id]) {
-        sessionsMap[row.session_id] = {
+        const session = {
           id: row.session_id,
           date: row.date,
           session_custom_name: row.session_custom_name,
@@ -650,6 +651,8 @@ exports.getSessionHistory = async (req, res) => {
           plan_name: row.plan_name,
           logs: [],
         };
+        sessionsMap[row.session_id] = session;
+        sessions.push(session);
       }
       if (row.log_id) {
         sessionsMap[row.session_id].logs.push({
@@ -669,7 +672,7 @@ exports.getSessionHistory = async (req, res) => {
       }
     });
 
-    res.json(Object.values(sessionsMap).slice(0, parseInt(limit)));
+    res.json(sessions.slice(0, parseInt(limit)));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
