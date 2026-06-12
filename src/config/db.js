@@ -401,6 +401,7 @@ db.serialize(() => {
       exercise_type TEXT DEFAULT 'weighted',
       notes TEXT,
       rest_seconds INTEGER,
+      tempo TEXT,
       FOREIGN KEY (day_id) REFERENCES workout_days(id) ON DELETE CASCADE,
       FOREIGN KEY (exercise_id) REFERENCES exercises(id)
     )`);
@@ -411,6 +412,7 @@ db.serialize(() => {
   addCol('workout_day_exercises', 'exercise_type', "TEXT DEFAULT 'weighted'");
   addCol('workout_day_exercises', 'notes', 'TEXT');
   addCol('workout_day_exercises', 'rest_seconds', 'INTEGER');
+  addCol('workout_day_exercises', 'tempo', 'TEXT');
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -436,9 +438,12 @@ db.serialize(() => {
       notes TEXT,
       duration_seconds INTEGER,
       is_pr INTEGER DEFAULT 0,
+      tempo TEXT,
       FOREIGN KEY (session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE,
       FOREIGN KEY (exercise_id) REFERENCES exercises(id)
     )`);
+
+  addCol('workout_session_logs', 'tempo', 'TEXT');
 
   safeRun(`CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
