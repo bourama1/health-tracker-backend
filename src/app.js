@@ -15,6 +15,9 @@ const ultrahumanRoutes = require('./routes/ultrahumanRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const mentalHealthRoutes = require('./routes/mentalHealthRoutes');
+const nutritionRoutes = require('./routes/nutritionRoutes');
+const mfpRoutes = require('./routes/mfpRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
@@ -96,5 +99,8 @@ app.use('/api/ultrahuman', ultrahumanRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/mental-health', mentalHealthRoutes);
+app.use('/api/nutrition', nutritionRoutes);
+app.use('/api/nutrition/mfp', mfpRoutes);
+app.use('/api/user', userRoutes);
 
 module.exports = app;

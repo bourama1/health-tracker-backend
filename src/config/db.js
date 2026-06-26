@@ -316,6 +316,54 @@ db.serialize(() => {
       UNIQUE(user_id, date)
     )`);
 
+  safeRun(`CREATE TABLE IF NOT EXISTS nutrition_diaries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      calories REAL DEFAULT 0,
+      protein REAL DEFAULT 0,
+      carbohydrates REAL DEFAULT 0,
+      fat REAL DEFAULT 0,
+      fiber REAL DEFAULT 0,
+      sugar REAL DEFAULT 0,
+      saturated_fat REAL DEFAULT 0,
+      cholesterol REAL DEFAULT 0,
+      sodium REAL DEFAULT 0,
+      potassium REAL DEFAULT 0,
+      vitamin_a REAL DEFAULT 0,
+      vitamin_c REAL DEFAULT 0,
+      calcium REAL DEFAULT 0,
+      iron REAL DEFAULT 0,
+      water_cups REAL DEFAULT 0,
+      water_ml REAL DEFAULT 0,
+      UNIQUE(user_id, date)
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS nutrition_meals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      meal_name TEXT,
+      food_name TEXT,
+      energy_value REAL DEFAULT 0,
+      energy_unit TEXT DEFAULT 'calories',
+      protein REAL DEFAULT 0,
+      carbohydrates REAL DEFAULT 0,
+      fat REAL DEFAULT 0,
+      fiber REAL DEFAULT 0,
+      sugar REAL DEFAULT 0,
+      saturated_fat REAL DEFAULT 0,
+      cholesterol REAL DEFAULT 0,
+      sodium REAL DEFAULT 0,
+      potassium REAL DEFAULT 0,
+      vitamin_a REAL DEFAULT 0,
+      vitamin_c REAL DEFAULT 0,
+      calcium REAL DEFAULT 0,
+      iron REAL DEFAULT 0,
+      serving_size REAL DEFAULT 0,
+      serving_unit TEXT DEFAULT ''
+    )`);
+
   const addCol = (table, col, type) => {
     const finalType = isProduction
       ? type.replace(/REAL/gi, 'DOUBLE PRECISION')
@@ -363,6 +411,9 @@ db.serialize(() => {
   );
   safeRun(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_mental_health_user_date ON mental_health(user_id, date)`
+  );
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_diaries_user_date ON nutrition_diaries(user_id, date)`
   );
 
   safeRun(`CREATE TABLE IF NOT EXISTS exercises (
@@ -442,6 +493,10 @@ db.serialize(() => {
 
   addCol('workout_sessions', 'notes', 'TEXT');
   addCol('workout_sessions', 'name', 'TEXT');
+
+  addCol('nutrition_meals', 'mfp_entry_id', 'TEXT');
+
+  addCol('users', 'mfp_username', 'TEXT');
 
   safeRun(`CREATE TABLE IF NOT EXISTS workout_session_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
