@@ -14,6 +14,7 @@ const fitRoutes = require('./routes/fitRoutes');
 const ultrahumanRoutes = require('./routes/ultrahumanRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const mentalHealthRoutes = require('./routes/mentalHealthRoutes');
 
 const app = express();
 
@@ -94,5 +95,6 @@ app.use('/api/fit', fitRoutes);
 app.use('/api/ultrahuman', ultrahumanRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/mental-health', mentalHealthRoutes);
 
 module.exports = app;

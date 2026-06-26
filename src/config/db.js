@@ -303,6 +303,19 @@ db.serialize(() => {
       UNIQUE(user_id, date)
     )`);
 
+  safeRun(`CREATE TABLE IF NOT EXISTS mental_health (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      energy INTEGER,
+      mood INTEGER,
+      composure INTEGER,
+      physicality INTEGER,
+      connectivity INTEGER,
+      notes TEXT,
+      UNIQUE(user_id, date)
+    )`);
+
   const addCol = (table, col, type) => {
     const finalType = isProduction
       ? type.replace(/REAL/gi, 'DOUBLE PRECISION')
@@ -347,6 +360,9 @@ db.serialize(() => {
   );
   safeRun(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_user_date ON photos(user_id, date)`
+  );
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_mental_health_user_date ON mental_health(user_id, date)`
   );
 
   safeRun(`CREATE TABLE IF NOT EXISTS exercises (
