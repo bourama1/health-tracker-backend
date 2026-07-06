@@ -2,6 +2,16 @@ const db = require('../config/db');
 
 const STATS = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
 
+const xpForLevel = (lvl) => {
+  if (lvl <= 1) return 0;
+  let total = 0, inc = 150;
+  for (let i = 2; i <= lvl; i++) {
+    total += inc;
+    inc = Math.floor(inc * 1.4);
+  }
+  return total;
+};
+
 const getUserOrCreate = (req, res, callback) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
   const userId = req.session.user.id;
@@ -115,20 +125,59 @@ exports.toggleLog = (req, res) => {
   const { skill_id, date } = req.body;
   if (!skill_id || !date) return res.status(400).json({ error: 'skill_id and date required' });
 
-  db.get(`SELECT * FROM stat_builder_logs WHERE skill_id = ? AND date = ?`, [skill_id, date], (err, existing) => {
+  db.get(`SELECT * FROM stat_builder_skills WHERE id = ? AND user_id = ?`, [skill_id, req.session.user.id], (err, skill) => {
     if (err) return res.status(400).json({ error: err.message });
-    if (existing) {
-      db.run(`UPDATE stat_builder_logs SET completed = CASE WHEN completed = 1 THEN 0 ELSE 1 END WHERE id = ?`, [existing.id], function (err) {
-        if (err) return res.status(400).json({ error: err.message });
-        const nowCompleted = existing.completed === 1 ? 0 : 1;
-        res.json({ id: existing.id, completed: nowCompleted, message: 'Log toggled' });
-      });
-    } else {
-      db.run(`INSERT INTO stat_builder_logs (user_id, skill_id, date, completed) VALUES (?, ?, ?, 1)`, [req.session.user.id, skill_id, date], function (err) {
-        if (err) return res.status(400).json({ error: err.message });
-        res.json({ id: this.lastID, completed: 1, message: 'Logged' });
-      });
-    }
+    if (!skill) return res.status(404).json({ error: 'Skill not found' });
+
+    const applyXpAndRespond = (newCompleted, logId) => {
+      const xpDelta = newCompleted ? skill.difficulty : -skill.difficulty;
+
+      const finish = () => {
+        db.all(`SELECT * FROM stat_builder_stats WHERE user_id = ?`, [req.session.user.id], (err, stats) => {
+          if (err) return res.status(400).json({ error: err.message });
+          db.get(`SELECT * FROM stat_builder_profile WHERE user_id = ?`, [req.session.user.id], (err, profile) => {
+            if (err) return res.status(400).json({ error: err.message });
+            let leveledUp = false;
+            if (newCompleted) {
+              let newLevel = profile.level;
+              while (profile.total_xp >= xpForLevel(newLevel + 1)) {
+                newLevel++;
+              }
+              if (newLevel > profile.level) {
+                db.run(`UPDATE stat_builder_profile SET level = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`, [newLevel, req.session.user.id]);
+                profile.level = newLevel;
+                leveledUp = true;
+              }
+            }
+            res.json({ id: logId, completed: newCompleted, stats, profile, leveledUp, message: newCompleted ? 'Logged' : 'Log toggled' });
+          });
+        });
+      };
+
+      if (xpDelta !== 0) {
+        db.run(`UPDATE stat_builder_stats SET value = MAX(1, value + ?), updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND stat_name = ?`, [xpDelta, req.session.user.id, skill.stat_name], () => {
+          db.run(`UPDATE stat_builder_profile SET total_xp = MAX(0, total_xp + ?), updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`, [xpDelta, req.session.user.id], finish);
+        });
+      } else {
+        finish();
+      }
+    };
+
+    db.get(`SELECT * FROM stat_builder_logs WHERE skill_id = ? AND date = ?`, [skill_id, date], (err, existing) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (existing) {
+        const newCompleted = existing.completed === 1 ? 0 : 1;
+        db.run(`UPDATE stat_builder_logs SET completed = ? WHERE id = ?`, [newCompleted, existing.id], function (err) {
+          if (err) return res.status(400).json({ error: err.message });
+          applyXpAndRespond(newCompleted, existing.id);
+        });
+      } else {
+        db.run(`INSERT INTO stat_builder_logs (user_id, skill_id, date, completed) VALUES (?, ?, ?, 1)`, [req.session.user.id, skill_id, date], function (err) {
+          if (err) return res.status(400).json({ error: err.message });
+          applyXpAndRespond(1, this.lastID);
+        });
+      }
+    });
   });
 };
 
@@ -180,15 +229,6 @@ exports.calculateWeek = (req, res) => {
       db.get(`SELECT * FROM stat_builder_profile WHERE user_id = ?`, [req.session.user.id], (err, profile) => {
         if (err) return res.status(400).json({ error: err.message });
         let leveledUp = false;
-        const xpForLevel = (lvl) => {
-          if (lvl <= 1) return 0;
-          let total = 0, inc = 150;
-          for (let i = 2; i <= lvl; i++) {
-            total += inc;
-            inc = Math.floor(inc * 1.4);
-          }
-          return total;
-        };
         let newLevel = profile.level;
         while (profile.total_xp >= xpForLevel(newLevel + 1)) {
           newLevel++;
