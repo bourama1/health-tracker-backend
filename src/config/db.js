@@ -416,6 +416,14 @@ db.serialize(() => {
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_diaries_user_date ON nutrition_diaries(user_id, date)`
   );
 
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_stat_builder_stats_user_stat ON stat_builder_stats(user_id, stat_name)`
+  );
+
+  safeRun(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_stat_builder_logs_skill_date ON stat_builder_logs(skill_id, date)`
+  );
+
   safeRun(`CREATE TABLE IF NOT EXISTS exercises (
       id TEXT PRIMARY KEY,
       name TEXT,
@@ -515,6 +523,70 @@ db.serialize(() => {
     )`);
 
   addCol('workout_session_logs', 'tempo', 'TEXT');
+
+  safeRun(`CREATE TABLE IF NOT EXISTS stat_builder_profile (
+      user_id TEXT PRIMARY KEY,
+      level INTEGER DEFAULT 1,
+      total_xp INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS stat_builder_stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      stat_name TEXT,
+      value INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, stat_name)
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS stat_builder_skills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      stat_name TEXT,
+      name TEXT,
+      difficulty INTEGER DEFAULT 1,
+      order_index INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS stat_builder_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      skill_id INTEGER,
+      date TEXT,
+      completed INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(skill_id, date)
+    )`);
+
+  addCol('stat_builder_skills', 'updated_at', 'DATETIME');
+
+  safeRun(`CREATE TABLE IF NOT EXISTS stat_builder_unlocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      xp_threshold INTEGER DEFAULT 150,
+      reward_text TEXT DEFAULT '',
+      achieved INTEGER DEFAULT 0,
+      achieved_date TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS journal_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      date TEXT,
+      prompt1 TEXT DEFAULT '',
+      prompt2 TEXT DEFAULT '',
+      prompt3 TEXT DEFAULT '',
+      prompt4 TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, date)
+    )`);
 
   safeRun(`CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

@@ -18,6 +18,7 @@ const mentalHealthRoutes = require('./routes/mentalHealthRoutes');
 const nutritionRoutes = require('./routes/nutritionRoutes');
 const mfpRoutes = require('./routes/mfpRoutes');
 const userRoutes = require('./routes/userRoutes');
+const statBuilderRoutes = require('./routes/statBuilderRoutes');
 
 const app = express();
 
@@ -102,5 +103,6 @@ app.use('/api/mental-health', mentalHealthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/nutrition/mfp', mfpRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/stat-builder', statBuilderRoutes);
 
 module.exports = app;
