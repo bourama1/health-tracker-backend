@@ -19,6 +19,7 @@ const nutritionRoutes = require('./routes/nutritionRoutes');
 const mfpRoutes = require('./routes/mfpRoutes');
 const userRoutes = require('./routes/userRoutes');
 const statBuilderRoutes = require('./routes/statBuilderRoutes');
+const todoRoutes = require('./routes/todoRoutes');
 
 const app = express();
 
@@ -104,5 +105,6 @@ app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/nutrition/mfp', mfpRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/stat-builder', statBuilderRoutes);
+app.use('/api/todo', todoRoutes);
 
 module.exports = app;

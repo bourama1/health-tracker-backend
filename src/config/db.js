@@ -575,6 +575,28 @@ db.serialize(() => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
+  safeRun(`CREATE TABLE IF NOT EXISTS todo_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      xp_reward INTEGER DEFAULT 5,
+      priority INTEGER DEFAULT 1,
+      start_date TEXT,
+      due_date TEXT,
+      completed INTEGER DEFAULT 0,
+      completed_date TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+  safeRun(`CREATE TABLE IF NOT EXISTS todo_task_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER,
+      stat_name TEXT NOT NULL,
+      bonus INTEGER DEFAULT 1,
+      FOREIGN KEY (task_id) REFERENCES todo_tasks(id) ON DELETE CASCADE
+    )`);
+
   safeRun(`CREATE TABLE IF NOT EXISTS journal_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT,
