@@ -15,7 +15,9 @@ const mfpGet = (path) =>
     };
     https
       .get(opts, (res) => {
-        console.log(`[MFP] Response status: ${res.statusCode} ${res.statusMessage}`);
+        console.log(
+          `[MFP] Response status: ${res.statusCode} ${res.statusMessage}`
+        );
         let data = '';
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
@@ -25,7 +27,11 @@ const mfpGet = (path) =>
             const parsed = JSON.parse(data);
             resolve(parsed);
           } catch (e) {
-            reject(new Error(`MFP parse error: ${e.message}. Raw: ${data.substring(0, 200)}`));
+            reject(
+              new Error(
+                `MFP parse error: ${e.message}. Raw: ${data.substring(0, 200)}`
+              )
+            );
           }
         });
       })
@@ -76,16 +82,31 @@ const recalcDiary = (userId, date) => {
           calcium = excluded.calcium,
           iron = excluded.iron
       `;
-      db.run(upsert, [
-        userId, date,
-        row.calories, row.protein, row.carbohydrates, row.fat,
-        row.fiber, row.sugar, row.saturated_fat, row.cholesterol,
-        row.sodium, row.potassium, row.vitamin_a, row.vitamin_c,
-        row.calcium, row.iron,
-      ], (err2) => {
-        if (err2) return reject(err2);
-        resolve(row);
-      });
+      db.run(
+        upsert,
+        [
+          userId,
+          date,
+          row.calories,
+          row.protein,
+          row.carbohydrates,
+          row.fat,
+          row.fiber,
+          row.sugar,
+          row.saturated_fat,
+          row.cholesterol,
+          row.sodium,
+          row.potassium,
+          row.vitamin_a,
+          row.vitamin_c,
+          row.calcium,
+          row.iron,
+        ],
+        (err2) => {
+          if (err2) return reject(err2);
+          resolve(row);
+        }
+      );
     });
   });
 };
@@ -98,18 +119,24 @@ exports.importDiary = async (req, res) => {
 
   const { username, from, to } = req.body;
   if (!username || !from || !to) {
-    return res.status(400).json({ error: 'username, from, and to are required' });
+    return res
+      .status(400)
+      .json({ error: 'username, from, and to are required' });
   }
 
   const userId = req.session.user.id;
 
   try {
-    console.log(`[MFP] Fetching range ${from} to ${to} for user ${username}...`);
+    console.log(
+      `[MFP] Fetching range ${from} to ${to} for user ${username}...`
+    );
     const data = await mfpGet(
       `/api/services/diary/read_diary?username=${encodeURIComponent(username)}&from=${from}&to=${to}&types=food_entry`
     );
 
-    console.log(`[MFP] Response type: ${typeof data}, isArray: ${Array.isArray(data)}, length: ${Array.isArray(data) ? data.length : 'N/A'}`);
+    console.log(
+      `[MFP] Response type: ${typeof data}, isArray: ${Array.isArray(data)}, length: ${Array.isArray(data) ? data.length : 'N/A'}`
+    );
     if (!Array.isArray(data)) {
       console.log(`[MFP] Response is not an array, got: ${typeof data}`);
       if (data && typeof data === 'object') {
@@ -138,7 +165,9 @@ exports.importDiary = async (req, res) => {
     for (const entry of data) {
       const mfpId = entry.id;
       if (!mfpId) {
-        console.log(`[MFP] Entry has no id, keys: ${Object.keys(entry).join(', ')}`);
+        console.log(
+          `[MFP] Entry has no id, keys: ${Object.keys(entry).join(', ')}`
+        );
         continue;
       }
 
@@ -148,7 +177,9 @@ exports.importDiary = async (req, res) => {
         continue;
       }
 
-      console.log(`[MFP] Processing entry id=${mfpId}, date=${date}, meal=${entry.meal_name}, food=${entry.food?.description}`);
+      console.log(
+        `[MFP] Processing entry id=${mfpId}, date=${date}, meal=${entry.meal_name}, food=${entry.food?.description}`
+      );
 
       if (!byDate[date]) byDate[date] = { entries: 0, skipped: 0 };
 
@@ -170,7 +201,9 @@ exports.importDiary = async (req, res) => {
       const food = entry.food || {};
       const serving = entry.serving_size || {};
 
-      console.log(`[MFP] Inserting: meal=${entry.meal_name}, food=${food.description || food.brand_name}, kcal=${nc.energy?.value}, servings=${entry.servings}`);
+      console.log(
+        `[MFP] Inserting: meal=${entry.meal_name}, food=${food.description || food.brand_name}, kcal=${nc.energy?.value}, servings=${entry.servings}`
+      );
 
       const query = `
         INSERT INTO nutrition_meals (
@@ -225,18 +258,31 @@ exports.importDiary = async (req, res) => {
     let totalSkipped = 0;
     for (const [date, counts] of Object.entries(byDate)) {
       if (counts.entries > 0 || counts.skipped > 0) {
-        console.log(`[MFP] ${date}: ${counts.entries} imported, ${counts.skipped} skipped, recalculating...`);
-        try { await recalcDiary(userId, date); } catch (e) { console.error(`[MFP] Recalc error for ${date}: ${e.message}`); }
+        console.log(
+          `[MFP] ${date}: ${counts.entries} imported, ${counts.skipped} skipped, recalculating...`
+        );
+        try {
+          await recalcDiary(userId, date);
+        } catch (e) {
+          console.error(`[MFP] Recalc error for ${date}: ${e.message}`);
+        }
       }
       if (counts.entries > 0) {
-        importedDates.push({ date, imported: counts.entries, skipped: counts.skipped });
+        importedDates.push({
+          date,
+          imported: counts.entries,
+          skipped: counts.skipped,
+        });
       }
       totalEntries += counts.entries;
       totalSkipped += counts.skipped;
     }
 
     // Save username for future auto-sync
-    db.run(`UPDATE users SET mfp_username = ? WHERE id = ?`, [username, userId]);
+    db.run(`UPDATE users SET mfp_username = ? WHERE id = ?`, [
+      username,
+      userId,
+    ]);
 
     res.json({
       message: `Imported ${totalEntries} food entries from MFP (${totalSkipped} skipped as duplicates)`,

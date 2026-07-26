@@ -59,9 +59,22 @@ exports.createEntry = (req, res) => {
 };
 
 exports.saveCheckin = (req, res) => {
-  if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+  if (!req.session.user)
+    return res.status(401).json({ error: 'Not authenticated' });
 
-  const { date, energy, mood, composure, physicality, connectivity, notes, prompt1, prompt2, prompt3, prompt4 } = req.body;
+  const {
+    date,
+    energy,
+    mood,
+    composure,
+    physicality,
+    connectivity,
+    notes,
+    prompt1,
+    prompt2,
+    prompt3,
+    prompt4,
+  } = req.body;
   if (!date) return res.status(400).json({ error: 'Date is required' });
 
   const userId = req.session.user.id;
@@ -77,7 +90,16 @@ exports.saveCheckin = (req, res) => {
       connectivity = COALESCE(excluded.connectivity, mental_health.connectivity),
       notes = COALESCE(excluded.notes, mental_health.notes)
   `;
-  const mentalParams = [userId, date, energy ?? null, mood ?? null, composure ?? null, physicality ?? null, connectivity ?? null, notes ?? null];
+  const mentalParams = [
+    userId,
+    date,
+    energy ?? null,
+    mood ?? null,
+    composure ?? null,
+    physicality ?? null,
+    connectivity ?? null,
+    notes ?? null,
+  ];
 
   const journalQuery = `
     INSERT INTO journal_entries (user_id, date, prompt1, prompt2, prompt3, prompt4)
@@ -89,7 +111,14 @@ exports.saveCheckin = (req, res) => {
       prompt4 = COALESCE(excluded.prompt4, journal_entries.prompt4),
       updated_at = CURRENT_TIMESTAMP
   `;
-  const journalParams = [userId, date, prompt1 || '', prompt2 || '', prompt3 || '', prompt4 || ''];
+  const journalParams = [
+    userId,
+    date,
+    prompt1 || '',
+    prompt2 || '',
+    prompt3 || '',
+    prompt4 || '',
+  ];
 
   db.serialize(() => {
     db.run('BEGIN', () => {
@@ -112,16 +141,25 @@ exports.saveCheckin = (req, res) => {
 };
 
 exports.getCheckin = (req, res) => {
-  if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+  if (!req.session.user)
+    return res.status(401).json({ error: 'Not authenticated' });
   const { date } = req.params;
   const userId = req.session.user.id;
-  db.get(`SELECT * FROM mental_health WHERE user_id = ? AND date = ?`, [userId, date], (err, mental) => {
-    if (err) return res.status(400).json({ error: err.message });
-    db.get(`SELECT * FROM journal_entries WHERE user_id = ? AND date = ?`, [userId, date], (err, journal) => {
+  db.get(
+    `SELECT * FROM mental_health WHERE user_id = ? AND date = ?`,
+    [userId, date],
+    (err, mental) => {
       if (err) return res.status(400).json({ error: err.message });
-      res.json({ mental: mental || null, journal: journal || null });
-    });
-  });
+      db.get(
+        `SELECT * FROM journal_entries WHERE user_id = ? AND date = ?`,
+        [userId, date],
+        (err, journal) => {
+          if (err) return res.status(400).json({ error: err.message });
+          res.json({ mental: mental || null, journal: journal || null });
+        }
+      );
+    }
+  );
 };
 
 exports.deleteEntry = (req, res) => {
