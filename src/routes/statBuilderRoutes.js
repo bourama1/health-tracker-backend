@@ -8,6 +8,7 @@ router.post('/skills', statBuilderController.createSkill);
 router.put('/skills/:id', statBuilderController.updateSkill);
 router.delete('/skills/:id', statBuilderController.deleteSkill);
 router.post('/log', statBuilderController.toggleLog);
+router.post('/freeze', statBuilderController.toggleFreeze);
 router.get('/logs', statBuilderController.getLogs);
 router.post('/calculate-week', statBuilderController.calculateWeek);
 router.put('/unlock', statBuilderController.setUnlock);

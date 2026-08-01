@@ -9,6 +9,60 @@ const STATS = [
   'charisma',
 ];
 
+const toDateStr = (d) => d.toISOString().split('T')[0];
+
+// Monday-Sunday week containing the given YYYY-MM-DD date string,
+// matching the week grid shown in the frontend.
+const getWeekRange = (dateStr) => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { from: toDateStr(monday), to: toDateStr(sunday) };
+};
+
+// Walks day-by-day from a skill's first logged date through today to work
+// out the current streak (consecutive days completed, without skipping)
+// and the longest streak ever reached. A frozen day preserves the streak
+// without incrementing it. Today is never treated as a break, since the
+// day isn't over yet.
+const computeStreakData = (logs, todayStr) => {
+  const byDate = {};
+  (logs || []).forEach((l) => {
+    byDate[l.date] = l;
+  });
+
+  const dates = Object.keys(byDate).sort();
+  if (dates.length === 0) return { current_streak: 0, longest_streak: 0 };
+
+  const cursor = new Date(`${dates[0]}T00:00:00`);
+  const end = new Date(`${todayStr}T00:00:00`);
+
+  let streak = 0;
+  let longest = 0;
+
+  while (cursor <= end) {
+    const ds = toDateStr(cursor);
+    const entry = byDate[ds];
+    if (entry && entry.completed === 1) {
+      streak += 1;
+      if (streak > longest) longest = streak;
+    } else if (entry && entry.frozen === 1) {
+      // streak paused, not broken, not incremented
+    } else if (ds === todayStr) {
+      // today not decided yet, don't break the streak
+    } else {
+      streak = 0;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return { current_streak: streak, longest_streak: longest };
+};
+
 const xpForLevel = (lvl) => {
   if (lvl <= 1) return 0;
   let total = 0,
@@ -73,7 +127,50 @@ exports.getData = (req, res) => {
                       return res.status(400).json({ error: err.message });
                     unlocks = rows;
 
-                    res.json({ profile, stats, skills, unlocks });
+                    db.all(
+                      `SELECT skill_id, date, completed, frozen FROM stat_builder_logs WHERE user_id = ?`,
+                      [userId],
+                      (err, logRows) => {
+                        if (err)
+                          return res.status(400).json({ error: err.message });
+
+                        const logsBySkill = {};
+                        (logRows || []).forEach((l) => {
+                          if (!logsBySkill[l.skill_id])
+                            logsBySkill[l.skill_id] = [];
+                          logsBySkill[l.skill_id].push(l);
+                        });
+
+                        const todayStr = toDateStr(new Date());
+                        const { from: weekFrom, to: weekTo } =
+                          getWeekRange(todayStr);
+
+                        const skillsWithStreaks = skills.map((sk) => {
+                          const skillLogs = logsBySkill[sk.id] || [];
+                          const { current_streak, longest_streak } =
+                            computeStreakData(skillLogs, todayStr);
+                          const freezeUsedThisWeek = skillLogs.some(
+                            (l) =>
+                              l.frozen === 1 &&
+                              l.date >= weekFrom &&
+                              l.date <= weekTo
+                          );
+                          return {
+                            ...sk,
+                            current_streak,
+                            longest_streak,
+                            freeze_available: !freezeUsedThisWeek,
+                          };
+                        });
+
+                        res.json({
+                          profile,
+                          stats,
+                          skills: skillsWithStreaks,
+                          unlocks,
+                        });
+                      }
+                    );
                   }
                 );
               }
@@ -279,7 +376,7 @@ exports.toggleLog = (req, res) => {
           if (existing) {
             const newCompleted = existing.completed === 1 ? 0 : 1;
             db.run(
-              `UPDATE stat_builder_logs SET completed = ? WHERE id = ?`,
+              `UPDATE stat_builder_logs SET completed = ?, frozen = 0 WHERE id = ?`,
               [newCompleted, existing.id],
               function (err) {
                 if (err) return res.status(400).json({ error: err.message });
@@ -420,6 +517,85 @@ exports.setUnlock = (req, res) => {
           }
         );
       }
+    }
+  );
+};
+
+exports.toggleFreeze = (req, res) => {
+  if (!req.session.user)
+    return res.status(401).json({ error: 'Not authenticated' });
+  const { skill_id, date } = req.body;
+  if (!skill_id || !date)
+    return res.status(400).json({ error: 'skill_id and date required' });
+
+  db.get(
+    `SELECT * FROM stat_builder_skills WHERE id = ? AND user_id = ?`,
+    [skill_id, req.session.user.id],
+    (err, skill) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!skill) return res.status(404).json({ error: 'Skill not found' });
+
+      db.get(
+        `SELECT * FROM stat_builder_logs WHERE skill_id = ? AND date = ?`,
+        [skill_id, date],
+        (err, existing) => {
+          if (err) return res.status(400).json({ error: err.message });
+          if (existing && existing.completed === 1) {
+            return res
+              .status(400)
+              .json({ error: 'Day already completed, no need to freeze it' });
+          }
+
+          const turningOn = !(existing && existing.frozen === 1);
+
+          const applyFreeze = () => {
+            if (existing) {
+              db.run(
+                `UPDATE stat_builder_logs SET frozen = ? WHERE id = ?`,
+                [turningOn ? 1 : 0, existing.id],
+                (err) => {
+                  if (err) return res.status(400).json({ error: err.message });
+                  res.json({
+                    frozen: turningOn,
+                    message: turningOn
+                      ? 'Streak frozen for this day'
+                      : 'Freeze removed',
+                  });
+                }
+              );
+            } else {
+              db.run(
+                `INSERT INTO stat_builder_logs (user_id, skill_id, date, completed, frozen) VALUES (?, ?, ?, 0, 1)`,
+                [req.session.user.id, skill_id, date],
+                function (err) {
+                  if (err) return res.status(400).json({ error: err.message });
+                  res.json({
+                    frozen: true,
+                    message: 'Streak frozen for this day',
+                  });
+                }
+              );
+            }
+          };
+
+          if (!turningOn) return applyFreeze();
+
+          const { from, to } = getWeekRange(date);
+          db.all(
+            `SELECT id FROM stat_builder_logs WHERE skill_id = ? AND frozen = 1 AND date >= ? AND date <= ? AND date != ?`,
+            [skill_id, from, to, date],
+            (err, rows) => {
+              if (err) return res.status(400).json({ error: err.message });
+              if (rows.length > 0) {
+                return res.status(400).json({
+                  error: 'Freeze already used this week for this skill',
+                });
+              }
+              applyFreeze();
+            }
+          );
+        }
+      );
     }
   );
 };

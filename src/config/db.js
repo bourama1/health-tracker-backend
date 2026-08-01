@@ -564,6 +564,7 @@ db.serialize(() => {
     )`);
 
   addCol('stat_builder_skills', 'updated_at', 'DATETIME');
+  addCol('stat_builder_logs', 'frozen', 'INTEGER DEFAULT 0');
 
   safeRun(`CREATE TABLE IF NOT EXISTS stat_builder_unlocks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
