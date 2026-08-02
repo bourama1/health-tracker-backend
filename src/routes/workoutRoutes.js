@@ -7,6 +7,9 @@ router.get('/exercises/suggestion/:exercise_id', c.getExerciseSuggestion);
 router.get('/exercises/filters', c.getExerciseFilters);
 router.get('/exercises/:id', c.getExerciseById);
 router.get('/exercises', c.getAllExercises);
+router.post('/exercises', c.createExercise);
+router.put('/exercises/:id', c.updateExercise);
+router.delete('/exercises/:id', c.deleteExercise);
 
 // Plans
 router.get('/plans', c.getPlans);

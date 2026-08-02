@@ -188,6 +188,175 @@ exports.getExerciseFilters = async (req, res) => {
   }
 };
 
+// ─── Custom exercise creation ───────────────────────────────────────────────
+
+const slugify = (name) =>
+  name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+const toCsv = (val) => {
+  if (Array.isArray(val)) return val.map((v) => v.trim()).filter(Boolean).join(', ');
+  if (typeof val === 'string') return val.trim();
+  return '';
+};
+
+exports.createExercise = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  try {
+    const {
+      name,
+      category,
+      equipment,
+      primary_muscles,
+      secondary_muscles,
+      force,
+      level,
+      mechanic,
+      instructions,
+    } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Exercise name is required' });
+    }
+
+    let id = `custom-${slugify(name)}`;
+    if (!id || id === 'custom-') {
+      return res.status(400).json({ error: 'Could not generate a valid id from that name' });
+    }
+    // Avoid clobbering an existing exercise (custom or seeded) with the same slug.
+    let candidate = id;
+    let suffix = 2;
+    while (await dbGet(`SELECT id FROM exercises WHERE id = ?`, [candidate])) {
+      candidate = `${id}-${suffix}`;
+      suffix += 1;
+    }
+    id = candidate;
+
+    const instructionsJson = Array.isArray(instructions)
+      ? JSON.stringify(instructions.filter((s) => s && s.trim()))
+      : instructions && instructions.trim()
+        ? JSON.stringify([instructions.trim()])
+        : null;
+
+    await dbRun(
+      `INSERT INTO exercises
+        (id, name, category, equipment, primary_muscles, secondary_muscles, force, level, mechanic, instructions)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        name.trim(),
+        category || null,
+        equipment || null,
+        toCsv(primary_muscles) || null,
+        toCsv(secondary_muscles) || null,
+        force || null,
+        level || null,
+        mechanic || null,
+        instructionsJson,
+      ]
+    );
+
+    const created = await dbGet(`SELECT * FROM exercises WHERE id = ?`, [id]);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+exports.updateExercise = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  try {
+    const existing = await dbGet(`SELECT * FROM exercises WHERE id = ?`, [
+      req.params.id,
+    ]);
+    if (!existing) return res.status(404).json({ error: 'Exercise not found' });
+
+    const {
+      name,
+      category,
+      equipment,
+      primary_muscles,
+      secondary_muscles,
+      force,
+      level,
+      mechanic,
+      instructions,
+    } = req.body;
+
+    const instructionsJson =
+      instructions === undefined
+        ? existing.instructions
+        : Array.isArray(instructions)
+          ? JSON.stringify(instructions.filter((s) => s && s.trim()))
+          : instructions && instructions.trim()
+            ? JSON.stringify([instructions.trim()])
+            : null;
+
+    await dbRun(
+      `UPDATE exercises SET
+        name = ?, category = ?, equipment = ?, primary_muscles = ?,
+        secondary_muscles = ?, force = ?, level = ?, mechanic = ?, instructions = ?
+       WHERE id = ?`,
+      [
+        name?.trim() || existing.name,
+        category ?? existing.category,
+        equipment ?? existing.equipment,
+        primary_muscles !== undefined ? toCsv(primary_muscles) : existing.primary_muscles,
+        secondary_muscles !== undefined ? toCsv(secondary_muscles) : existing.secondary_muscles,
+        force ?? existing.force,
+        level ?? existing.level,
+        mechanic ?? existing.mechanic,
+        instructionsJson,
+        req.params.id,
+      ]
+    );
+
+    const updated = await dbGet(`SELECT * FROM exercises WHERE id = ?`, [
+      req.params.id,
+    ]);
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+exports.deleteExercise = async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  try {
+    const { id } = req.params;
+    const [inPlans] = await dbAll(
+      `SELECT COUNT(*) as cnt FROM workout_day_exercises WHERE exercise_id = ?`,
+      [id]
+    );
+    const [inLogs] = await dbAll(
+      `SELECT COUNT(*) as cnt FROM workout_session_logs WHERE exercise_id = ?`,
+      [id]
+    );
+    if ((inPlans?.cnt || 0) > 0 || (inLogs?.cnt || 0) > 0) {
+      return res.status(400).json({
+        error:
+          'This exercise is used in a workout plan or logged session, so it can\u2019t be deleted.',
+      });
+    }
+    const result = await dbRun(`DELETE FROM exercises WHERE id = ?`, [id]);
+    if (!result.changes) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
 // ─── Plans ────────────────────────────────────────────────────────────────────
 
 exports.getPlans = async (req, res) => {
